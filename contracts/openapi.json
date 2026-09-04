@@ -1,0 +1,42 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "ok",
+                    "service": "uml-class-designer-be",
+                    "timestamp": "2026-09-04T00:00:00.000Z"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Comprueba que la API está disponible",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "UML Class Designer API",
+    "description": "API interna de la herramienta CASE; no es el backend Spring Boot generado.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {}
+  }
+}

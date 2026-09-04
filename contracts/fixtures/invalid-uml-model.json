@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "0.1.0",
+  "project": { "id": "invalid_project", "name": "Inválido" },
+  "diagram": {
+    "id": "invalid_diagram",
+    "name": "Multiplicidad inválida",
+    "elements": [],
+    "relationships": [
+      {
+        "id": "invalid_relation",
+        "kind": "association",
+        "source": { "elementId": "missing_a", "role": "a", "multiplicity": "many", "navigable": true },
+        "target": { "elementId": "missing_b", "role": "b", "multiplicity": "0..*", "navigable": true }
+      }
+    ],
+    "visual": { "positions": [] }
+  },
+  "metadata": { "createdAt": "not-a-date", "updatedAt": "2026-09-04T12:00:00.000Z", "revision": 0 }
+}

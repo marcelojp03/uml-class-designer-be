@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uml-class-designer.local/contracts/uml-model/0.1.0",
+  "title": "UML Class Designer canonical model",
+  "description": "Contrato semántico UML independiente de la proyección visual, persistencia y colaboración.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "project", "diagram", "metadata"],
+  "properties": {
+    "schemaVersion": { "const": "0.1.0" },
+    "project": { "$ref": "#/$defs/project" },
+    "diagram": { "$ref": "#/$defs/diagram" },
+    "metadata": { "$ref": "#/$defs/metadata" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{1,63}$" },
+    "visibility": { "enum": ["public", "protected", "private", "package"] },
+    "multiplicity": {
+      "type": "string",
+      "description": "Valor simple o rango UML; admite 1, 0..1, *, 0..*, 1..* y rangos enteros personalizados.",
+      "pattern": "^(?:\\*|[0-9]+|[0-9]+\\.\\.(?:[0-9]+|\\*))$"
+    },
+    "typeReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "elementId": { "$ref": "#/$defs/id" },
+        "collection": { "type": "boolean", "default": false },
+        "nullable": { "type": "boolean", "default": false }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "type"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "type": { "$ref": "#/$defs/typeReference" },
+        "defaultValue": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "attribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "visibility", "type", "isStatic", "isReadOnly"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "visibility": { "$ref": "#/$defs/visibility" },
+        "type": { "$ref": "#/$defs/typeReference" },
+        "isStatic": { "type": "boolean" },
+        "isReadOnly": { "type": "boolean" },
+        "defaultValue": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "visibility", "parameters", "returnType", "isAbstract", "isStatic"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "visibility": { "$ref": "#/$defs/visibility" },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/parameter" } },
+        "returnType": { "$ref": "#/$defs/typeReference" },
+        "isAbstract": { "type": "boolean" },
+        "isStatic": { "type": "boolean" }
+      }
+    },
+    "class": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name", "isAbstract", "attributes", "operations"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "const": "class" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "isAbstract": { "type": "boolean" },
+        "stereotypes": { "type": "array", "items": { "type": "string", "maxLength": 80 }, "uniqueItems": true },
+        "attributes": { "type": "array", "items": { "$ref": "#/$defs/attribute" } },
+        "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
+      }
+    },
+    "interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name", "attributes", "operations"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "const": "interface" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "stereotypes": { "type": "array", "items": { "type": "string", "maxLength": 80 }, "uniqueItems": true },
+        "attributes": { "type": "array", "items": { "$ref": "#/$defs/attribute" } },
+        "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
+      }
+    },
+    "relationshipEnd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elementId", "role", "multiplicity", "navigable"],
+      "properties": {
+        "elementId": { "$ref": "#/$defs/id" },
+        "role": { "type": "string", "maxLength": 120 },
+        "multiplicity": { "$ref": "#/$defs/multiplicity" },
+        "navigable": { "type": "boolean" }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "source", "target"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["association", "aggregation", "composition", "generalization", "realization", "dependency"] },
+        "name": { "type": "string", "maxLength": 120 },
+        "source": { "$ref": "#/$defs/relationshipEnd" },
+        "target": { "$ref": "#/$defs/relationshipEnd" },
+        "associationClassId": { "$ref": "#/$defs/id" }
+      }
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elementId", "x", "y"],
+      "properties": {
+        "elementId": { "$ref": "#/$defs/id" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "visualProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["positions"],
+      "properties": {
+        "positions": { "type": "array", "items": { "$ref": "#/$defs/position" } }
+      }
+    },
+    "diagram": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "elements", "relationships", "visual"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "elements": {
+          "type": "array",
+          "items": { "oneOf": [{ "$ref": "#/$defs/class" }, { "$ref": "#/$defs/interface" }] }
+        },
+        "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } },
+        "visual": { "$ref": "#/$defs/visualProjection" }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 2000 }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["createdAt", "updatedAt", "revision"],
+      "properties": {
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "tags": { "type": "array", "items": { "type": "string", "maxLength": 80 }, "uniqueItems": true }
+      }
+    }
+  }
+}

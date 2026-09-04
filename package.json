@@ -1,0 +1,62 @@
+{
+  "name": "uml-class-designer-be",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend interno de la herramienta CASE UML Class Designer",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/src/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint -c oxlint.config.mjs .",
+    "format:check": "oxfmt -c oxfmt.config.mjs --check \"**/*.{ts,json}\"",
+    "format": "oxfmt -c oxfmt.config.mjs --write \"**/*.{ts,json}\"",
+    "test": "jest --runInBand",
+    "test:e2e": "jest --config test/jest-e2e.json --runInBand",
+    "contracts:test": "jest contracts --runInBand",
+    "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "openapi:check": "tsx scripts/generate-openapi.ts --check",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "node --env-file=.env.example node_modules/prisma/build/index.js validate",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm prisma:validate && pnpm openapi:check && pnpm build"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.1.16",
+    "@nestjs/config": "4.0.2",
+    "@nestjs/core": "11.1.16",
+    "@nestjs/platform-express": "11.1.16",
+    "@nestjs/swagger": "11.2.6",
+    "@prisma/client": "6.19.1",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.14.2",
+    "helmet": "8.1.0",
+    "joi": "18.0.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "11.0.14",
+    "@nestjs/schematics": "11.0.9",
+    "@nestjs/testing": "11.1.16",
+    "@types/jest": "30.0.0",
+    "@types/node": "22.18.6",
+    "@types/supertest": "6.0.3",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
+    "jest": "30.2.0",
+    "oxfmt": "0.65.0",
+    "oxlint": "1.70.0",
+    "prisma": "6.19.1",
+    "source-map-support": "0.5.21",
+    "supertest": "7.1.4",
+    "ts-jest": "29.4.4",
+    "ts-node": "10.9.2",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}
