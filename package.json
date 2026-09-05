@@ -4,18 +4,14 @@
   "private": true,
   "description": "Backend interno de la herramienta CASE UML Class Designer",
   "license": "UNLICENSED",
-  "packageManager": "pnpm@11.1.2",
-  "engines": {
-    "node": ">=22.12.0"
-  },
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/src/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint -c oxlint.config.mjs .",
-    "format:check": "oxfmt -c oxfmt.config.mjs --check \"**/*.{ts,json}\"",
-    "format": "oxfmt -c oxfmt.config.mjs --write \"**/*.{ts,json}\"",
+    "format:check": "oxfmt -c oxfmt.config.mjs --check \"**/*.{ts,json}\" \"!contracts/openapi.json\"",
+    "format": "oxfmt -c oxfmt.config.mjs --write \"**/*.{ts,json}\" \"!contracts/openapi.json\"",
     "test": "jest --runInBand",
     "test:e2e": "jest --config test/jest-e2e.json --runInBand",
     "contracts:test": "jest contracts --runInBand",
@@ -58,5 +54,9 @@
     "ts-node": "10.9.2",
     "tsx": "4.20.6",
     "typescript": "5.9.3"
-  }
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.1.2"
 }

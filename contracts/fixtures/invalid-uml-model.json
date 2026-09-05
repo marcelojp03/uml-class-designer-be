@@ -9,8 +9,18 @@
       {
         "id": "invalid_relation",
         "kind": "association",
-        "source": { "elementId": "missing_a", "role": "a", "multiplicity": "many", "navigable": true },
-        "target": { "elementId": "missing_b", "role": "b", "multiplicity": "0..*", "navigable": true }
+        "source": {
+          "elementId": "missing_a",
+          "role": "a",
+          "multiplicity": "many",
+          "navigable": true
+        },
+        "target": {
+          "elementId": "missing_b",
+          "role": "b",
+          "multiplicity": "0..*",
+          "navigable": true
+        }
       }
     ],
     "visual": { "positions": [] }

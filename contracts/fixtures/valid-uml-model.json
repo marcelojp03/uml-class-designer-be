@@ -15,7 +15,14 @@
         "name": "Person",
         "isAbstract": true,
         "attributes": [
-          { "id": "person_name", "name": "name", "visibility": "protected", "type": { "name": "String", "nullable": false, "collection": false }, "isStatic": false, "isReadOnly": false }
+          {
+            "id": "person_name",
+            "name": "name",
+            "visibility": "protected",
+            "type": { "name": "String", "nullable": false, "collection": false },
+            "isStatic": false,
+            "isReadOnly": false
+          }
         ],
         "operations": []
       },
@@ -25,10 +32,36 @@
         "name": "Customer",
         "isAbstract": false,
         "attributes": [
-          { "id": "customer_email", "name": "email", "visibility": "private", "type": { "name": "String", "nullable": false, "collection": false }, "isStatic": false, "isReadOnly": true }
+          {
+            "id": "customer_email",
+            "name": "email",
+            "visibility": "private",
+            "type": { "name": "String", "nullable": false, "collection": false },
+            "isStatic": false,
+            "isReadOnly": true
+          }
         ],
         "operations": [
-          { "id": "customer_place", "name": "placeOrder", "visibility": "public", "parameters": [{ "id": "customer_place_total", "name": "total", "type": { "name": "Decimal", "nullable": false, "collection": false } }], "returnType": { "name": "Order", "elementId": "order", "nullable": false, "collection": false }, "isAbstract": false, "isStatic": false }
+          {
+            "id": "customer_place",
+            "name": "placeOrder",
+            "visibility": "public",
+            "parameters": [
+              {
+                "id": "customer_place_total",
+                "name": "total",
+                "type": { "name": "Decimal", "nullable": false, "collection": false }
+              }
+            ],
+            "returnType": {
+              "name": "Order",
+              "elementId": "order",
+              "nullable": false,
+              "collection": false
+            },
+            "isAbstract": false,
+            "isStatic": false
+          }
         ]
       },
       {
@@ -37,10 +70,25 @@
         "name": "Order",
         "isAbstract": false,
         "attributes": [
-          { "id": "order_number", "name": "number", "visibility": "private", "type": { "name": "String", "nullable": false, "collection": false }, "isStatic": false, "isReadOnly": true }
+          {
+            "id": "order_number",
+            "name": "number",
+            "visibility": "private",
+            "type": { "name": "String", "nullable": false, "collection": false },
+            "isStatic": false,
+            "isReadOnly": true
+          }
         ],
         "operations": [
-          { "id": "order_total", "name": "calculateTotal", "visibility": "public", "parameters": [], "returnType": { "name": "Decimal", "nullable": false, "collection": false }, "isAbstract": false, "isStatic": false }
+          {
+            "id": "order_total",
+            "name": "calculateTotal",
+            "visibility": "public",
+            "parameters": [],
+            "returnType": { "name": "Decimal", "nullable": false, "collection": false },
+            "isAbstract": false,
+            "isStatic": false
+          }
         ]
       },
       {
@@ -49,7 +97,14 @@
         "name": "OrderLine",
         "isAbstract": false,
         "attributes": [
-          { "id": "line_quantity", "name": "quantity", "visibility": "private", "type": { "name": "Integer", "nullable": false, "collection": false }, "isStatic": false, "isReadOnly": false }
+          {
+            "id": "line_quantity",
+            "name": "quantity",
+            "visibility": "private",
+            "type": { "name": "Integer", "nullable": false, "collection": false },
+            "isStatic": false,
+            "isReadOnly": false
+          }
         ],
         "operations": []
       },
@@ -60,7 +115,26 @@
         "stereotypes": ["repository"],
         "attributes": [],
         "operations": [
-          { "id": "repository_save", "name": "save", "visibility": "public", "parameters": [{ "id": "repository_save_order", "name": "order", "type": { "name": "Order", "elementId": "order", "nullable": false, "collection": false } }], "returnType": { "name": "void", "nullable": false, "collection": false }, "isAbstract": true, "isStatic": false }
+          {
+            "id": "repository_save",
+            "name": "save",
+            "visibility": "public",
+            "parameters": [
+              {
+                "id": "repository_save_order",
+                "name": "order",
+                "type": {
+                  "name": "Order",
+                  "elementId": "order",
+                  "nullable": false,
+                  "collection": false
+                }
+              }
+            ],
+            "returnType": { "name": "void", "nullable": false, "collection": false },
+            "isAbstract": true,
+            "isStatic": false
+          }
         ]
       },
       {
@@ -70,19 +144,120 @@
         "isAbstract": false,
         "stereotypes": ["association-class"],
         "attributes": [
-          { "id": "enrolled_at", "name": "enrolledAt", "visibility": "private", "type": { "name": "LocalDate", "nullable": false, "collection": false }, "isStatic": false, "isReadOnly": true }
+          {
+            "id": "enrolled_at",
+            "name": "enrolledAt",
+            "visibility": "private",
+            "type": { "name": "LocalDate", "nullable": false, "collection": false },
+            "isStatic": false,
+            "isReadOnly": true
+          }
         ],
         "operations": []
       }
     ],
     "relationships": [
-      { "id": "rel_inherits", "kind": "generalization", "source": { "elementId": "customer", "role": "", "multiplicity": "1", "navigable": true }, "target": { "elementId": "person", "role": "", "multiplicity": "1", "navigable": true } },
-      { "id": "rel_orders", "kind": "association", "name": "places", "source": { "elementId": "customer", "role": "customer", "multiplicity": "1", "navigable": true }, "target": { "elementId": "order", "role": "orders", "multiplicity": "0..*", "navigable": true } },
-      { "id": "rel_preferred_order", "kind": "association", "name": "prefers", "source": { "elementId": "customer", "role": "preferredBy", "multiplicity": "0..*", "navigable": false }, "target": { "elementId": "order", "role": "preferredOrder", "multiplicity": "0..1", "navigable": true } },
-      { "id": "rel_lines", "kind": "composition", "source": { "elementId": "order", "role": "order", "multiplicity": "1", "navigable": true }, "target": { "elementId": "order_line", "role": "lines", "multiplicity": "1..*", "navigable": true } },
-      { "id": "rel_manager", "kind": "association", "name": "reports", "source": { "elementId": "person", "role": "manager", "multiplicity": "0..1", "navigable": true }, "target": { "elementId": "person", "role": "reports", "multiplicity": "0..*", "navigable": true } },
-      { "id": "rel_repository", "kind": "realization", "source": { "elementId": "order", "role": "implementation", "multiplicity": "1", "navigable": true }, "target": { "elementId": "repository", "role": "contract", "multiplicity": "1", "navigable": true } },
-      { "id": "rel_enrollment", "kind": "association", "source": { "elementId": "customer", "role": "student", "multiplicity": "0..*", "navigable": true }, "target": { "elementId": "order", "role": "course", "multiplicity": "0..*", "navigable": true }, "associationClassId": "enrollment" }
+      {
+        "id": "rel_inherits",
+        "kind": "generalization",
+        "source": { "elementId": "customer", "role": "", "multiplicity": "1", "navigable": true },
+        "target": { "elementId": "person", "role": "", "multiplicity": "1", "navigable": true }
+      },
+      {
+        "id": "rel_orders",
+        "kind": "association",
+        "name": "places",
+        "source": {
+          "elementId": "customer",
+          "role": "customer",
+          "multiplicity": "1",
+          "navigable": true
+        },
+        "target": {
+          "elementId": "order",
+          "role": "orders",
+          "multiplicity": "0..*",
+          "navigable": true
+        }
+      },
+      {
+        "id": "rel_preferred_order",
+        "kind": "association",
+        "name": "prefers",
+        "source": {
+          "elementId": "customer",
+          "role": "preferredBy",
+          "multiplicity": "0..*",
+          "navigable": false
+        },
+        "target": {
+          "elementId": "order",
+          "role": "preferredOrder",
+          "multiplicity": "0..1",
+          "navigable": true
+        }
+      },
+      {
+        "id": "rel_lines",
+        "kind": "composition",
+        "source": { "elementId": "order", "role": "order", "multiplicity": "1", "navigable": true },
+        "target": {
+          "elementId": "order_line",
+          "role": "lines",
+          "multiplicity": "1..*",
+          "navigable": true
+        }
+      },
+      {
+        "id": "rel_manager",
+        "kind": "association",
+        "name": "reports",
+        "source": {
+          "elementId": "person",
+          "role": "manager",
+          "multiplicity": "0..1",
+          "navigable": true
+        },
+        "target": {
+          "elementId": "person",
+          "role": "reports",
+          "multiplicity": "0..*",
+          "navigable": true
+        }
+      },
+      {
+        "id": "rel_repository",
+        "kind": "realization",
+        "source": {
+          "elementId": "order",
+          "role": "implementation",
+          "multiplicity": "1",
+          "navigable": true
+        },
+        "target": {
+          "elementId": "repository",
+          "role": "contract",
+          "multiplicity": "1",
+          "navigable": true
+        }
+      },
+      {
+        "id": "rel_enrollment",
+        "kind": "association",
+        "source": {
+          "elementId": "customer",
+          "role": "student",
+          "multiplicity": "0..*",
+          "navigable": true
+        },
+        "target": {
+          "elementId": "order",
+          "role": "course",
+          "multiplicity": "0..*",
+          "navigable": true
+        },
+        "associationClassId": "enrollment"
+      }
     ],
     "visual": {
       "positions": [

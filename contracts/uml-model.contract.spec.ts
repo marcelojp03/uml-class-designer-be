@@ -20,11 +20,16 @@ describe('canonical UML contract', () => {
 
   it('rejects the invalid fixture', () => {
     expect(validate(loadJson('contracts/fixtures/invalid-uml-model.json'))).toBe(false);
-    expect(validate.errors?.some((error) => error.instancePath.endsWith('/multiplicity'))).toBe(true);
+    expect(validate.errors?.some((error) => error.instancePath.endsWith('/multiplicity'))).toBe(
+      true,
+    );
   });
 
   it('does not couple the canonical schema to React Flow', () => {
-    const schemaText = readFileSync(resolve(process.cwd(), 'contracts/uml-model.schema.json'), 'utf8');
+    const schemaText = readFileSync(
+      resolve(process.cwd(), 'contracts/uml-model.schema.json'),
+      'utf8',
+    );
 
     expect(schemaText).not.toMatch(/react.?flow|@xyflow|"nodes"|"edges"/i);
   });

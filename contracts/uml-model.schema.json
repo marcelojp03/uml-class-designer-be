@@ -59,7 +59,15 @@
     "operation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "visibility", "parameters", "returnType", "isAbstract", "isStatic"],
+      "required": [
+        "id",
+        "name",
+        "visibility",
+        "parameters",
+        "returnType",
+        "isAbstract",
+        "isStatic"
+      ],
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "name": { "type": "string", "minLength": 1, "maxLength": 120 },
@@ -79,7 +87,11 @@
         "kind": { "const": "class" },
         "name": { "type": "string", "minLength": 1, "maxLength": 120 },
         "isAbstract": { "type": "boolean" },
-        "stereotypes": { "type": "array", "items": { "type": "string", "maxLength": 80 }, "uniqueItems": true },
+        "stereotypes": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 80 },
+          "uniqueItems": true
+        },
         "attributes": { "type": "array", "items": { "$ref": "#/$defs/attribute" } },
         "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
       }
@@ -92,7 +104,11 @@
         "id": { "$ref": "#/$defs/id" },
         "kind": { "const": "interface" },
         "name": { "type": "string", "minLength": 1, "maxLength": 120 },
-        "stereotypes": { "type": "array", "items": { "type": "string", "maxLength": 80 }, "uniqueItems": true },
+        "stereotypes": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 80 },
+          "uniqueItems": true
+        },
         "attributes": { "type": "array", "items": { "$ref": "#/$defs/attribute" } },
         "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
       }
@@ -114,7 +130,16 @@
       "required": ["id", "kind", "source", "target"],
       "properties": {
         "id": { "$ref": "#/$defs/id" },
-        "kind": { "enum": ["association", "aggregation", "composition", "generalization", "realization", "dependency"] },
+        "kind": {
+          "enum": [
+            "association",
+            "aggregation",
+            "composition",
+            "generalization",
+            "realization",
+            "dependency"
+          ]
+        },
         "name": { "type": "string", "maxLength": 120 },
         "source": { "$ref": "#/$defs/relationshipEnd" },
         "target": { "$ref": "#/$defs/relationshipEnd" },
@@ -174,7 +199,11 @@
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "revision": { "type": "integer", "minimum": 0 },
-        "tags": { "type": "array", "items": { "type": "string", "maxLength": 80 }, "uniqueItems": true }
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 80 },
+          "uniqueItems": true
+        }
       }
     }
   }

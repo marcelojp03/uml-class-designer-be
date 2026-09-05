@@ -14,7 +14,9 @@ async function run(): Promise<void> {
     if (checkOnly) {
       const existing = await readFile(outputPath, 'utf8').catch(() => '');
       if (existing !== generated) {
-        throw new Error('contracts/openapi.json no está sincronizado. Ejecuta pnpm openapi:generate.');
+        throw new Error(
+          'contracts/openapi.json no está sincronizado. Ejecuta pnpm openapi:generate.',
+        );
       }
       console.log('OpenAPI sincronizado: contracts/openapi.json');
       return;
