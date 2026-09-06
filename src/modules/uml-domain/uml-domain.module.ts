@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
+import { CanonicalModelValidator } from './canonical-model.validator';
+import { DocumentsController } from './documents.controller';
+import { DocumentsService } from './documents.service';
 
-// The canonical contract currently lives in contracts/. Runtime services will
-// enter through this module when persistence endpoints are introduced.
-@Module({})
+@Module({
+  controllers: [DocumentsController],
+  providers: [CanonicalModelValidator, DocumentsService],
+})
 export class UmlDomainModule {}

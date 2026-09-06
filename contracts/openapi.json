@@ -1,6 +1,517 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [
+          {
+            "name": "x-auth-intent",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No fue posible crear la cuenta con esos datos."
+          }
+        },
+        "summary": "Crea un usuario y una sesión segura",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [
+          {
+            "name": "x-auth-intent",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales inválidas."
+          }
+        },
+        "summary": "Inicia una sesión con correo y contraseña",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [
+          {
+            "name": "x-auth-intent",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión revocada, expirada o inválida."
+          },
+          "403": {
+            "description": "Falta la intención explícita o el origen no está permitido."
+          }
+        },
+        "security": [
+          {
+            "refresh-cookie": []
+          }
+        ],
+        "summary": "Rota el refresh token y emite un nuevo access token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [
+          {
+            "name": "x-auth-intent",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "refresh-cookie": []
+          }
+        ],
+        "summary": "Revoca la sesión asociada a la cookie de refresh",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Access token o sesión inválidos."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Devuelve el usuario de la sesión autenticada",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/projects": {
+      "get": {
+        "operationId": "ProjectsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Lista únicamente los proyectos del usuario",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "operationId": "ProjectsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Crea un proyecto y su única membresía OWNER atómicamente",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{projectId}": {
+      "get": {
+        "operationId": "ProjectsController_get",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proyecto inexistente o fuera del alcance del usuario."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consulta un proyecto donde el usuario es miembro",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "ProjectsController_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "El miembro no es OWNER."
+          },
+          "404": {
+            "description": "Proyecto inexistente o fuera del alcance del usuario."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Actualiza un proyecto como OWNER",
+        "tags": [
+          "projects"
+        ]
+      },
+      "delete": {
+        "operationId": "ProjectsController_delete",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "El miembro no es OWNER."
+          },
+          "404": {
+            "description": "Proyecto inexistente o fuera del alcance del usuario."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Elimina un proyecto y sus dependencias como OWNER",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{projectId}/members": {
+      "get": {
+        "operationId": "ProjectMembersController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectMemberResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "El miembro no es OWNER."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Lista miembros como OWNER",
+        "tags": [
+          "project-members"
+        ]
+      },
+      "post": {
+        "operationId": "ProjectMembersController_add",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddProjectMemberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMemberResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proyecto o usuario registrado inexistente."
+          },
+          "409": {
+            "description": "El usuario ya es miembro."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Agrega como EDITOR una cuenta confirmada por correo e ID",
+        "tags": [
+          "project-members"
+        ]
+      }
+    },
+    "/projects/{projectId}/members/{userId}": {
+      "delete": {
+        "operationId": "ProjectMembersController_remove",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "El miembro objetivo es OWNER o el actor no es OWNER."
+          },
+          "404": {
+            "description": "Proyecto o miembro inexistente."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Retira un EDITOR; el OWNER no puede eliminarse",
+        "tags": [
+          "project-members"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "HealthController_check",
@@ -26,6 +537,255 @@
           "health"
         ]
       }
+    },
+    "/projects/{projectId}/documents": {
+      "get": {
+        "operationId": "DocumentsController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentSummaryResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Lista documentos del proyecto para OWNER o EDITOR",
+        "tags": [
+          "uml-documents"
+        ]
+      },
+      "post": {
+        "operationId": "DocumentsController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "El canonicalModel no cumple el schema 0.1.0."
+          },
+          "409": {
+            "description": "El nombre ya existe dentro del proyecto."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Crea y valida un documento UML canónico",
+        "tags": [
+          "uml-documents"
+        ]
+      }
+    },
+    "/projects/{projectId}/documents/{documentId}": {
+      "get": {
+        "operationId": "DocumentsController_get",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Documento inexistente o perteneciente a otro proyecto."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consulta el modelo canónico dentro del proyecto autorizado",
+        "tags": [
+          "uml-documents"
+        ]
+      },
+      "put": {
+        "operationId": "DocumentsController_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO o canonicalModel inválidos."
+          },
+          "404": {
+            "description": "Documento inexistente o perteneciente a otro proyecto."
+          },
+          "409": {
+            "description": "Conflicto de revisión o de nombre único.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RevisionConflictResponseDto"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpConflictResponseDto"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Actualiza por compare-and-swap e incrementa la revisión una vez",
+        "tags": [
+          "uml-documents"
+        ]
+      },
+      "delete": {
+        "operationId": "DocumentsController_delete",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "Documento inexistente o perteneciente a otro proyecto."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Elimina un documento como OWNER o EDITOR; revisiones caen en cascada",
+        "tags": [
+          "uml-documents"
+        ]
+      }
     }
   },
   "info": {
@@ -37,6 +797,918 @@
   "tags": [],
   "servers": [],
   "components": {
-    "schemas": {}
+    "securitySchemes": {
+      "access-token": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "refresh-cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "uml_refresh"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ana@example.com",
+            "maxLength": 254
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Ana Pérez",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "displayName",
+          "password"
+        ]
+      },
+      "UserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName"
+        ]
+      },
+      "AuthResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "JWT de acceso breve; el cliente debe conservarlo solo en memoria."
+          },
+          "tokenType": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "expiresIn": {
+            "type": "number",
+            "description": "Duración del access token en segundos.",
+            "example": 900
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponseDto"
+          }
+        },
+        "required": [
+          "accessToken",
+          "tokenType",
+          "expiresIn",
+          "user"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ana@example.com",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "ProjectResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "EDITOR"
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "role",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "example": "Sistema de ventas"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "nullable": true
+          }
+        }
+      },
+      "ProjectMemberResponseDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "EDITOR"
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "email",
+          "displayName",
+          "role",
+          "createdAt"
+        ]
+      },
+      "AddProjectMemberDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID compartido por el usuario desde su perfil."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "editor@example.com"
+          }
+        },
+        "required": [
+          "userId",
+          "email"
+        ]
+      },
+      "RevisionConflictResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Document revision conflict."
+          },
+          "currentRevision": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "message",
+          "currentRevision"
+        ]
+      },
+      "HttpConflictResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 409
+          },
+          "message": {
+            "type": "string",
+            "example": "A document with that name already exists in this project."
+          },
+          "error": {
+            "type": "string",
+            "example": "Conflict"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message",
+          "error"
+        ]
+      },
+      "DocumentSummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "revision": {
+            "type": "number",
+            "minimum": 0
+          },
+          "createdById": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updatedById": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name",
+          "schemaVersion",
+          "revision",
+          "createdById",
+          "updatedById",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateDocumentDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "example": "Modelo de dominio"
+          },
+          "canonicalModel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CanonicalUmlModel"
+              }
+            ],
+            "description": "Documento UML canónico validado contra el JSON Schema 0.1.0."
+          }
+        },
+        "required": [
+          "name",
+          "canonicalModel"
+        ]
+      },
+      "DocumentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "revision": {
+            "type": "number",
+            "minimum": 0
+          },
+          "createdById": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updatedById": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "canonicalModel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CanonicalUmlModel"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name",
+          "schemaVersion",
+          "revision",
+          "createdById",
+          "updatedById",
+          "createdAt",
+          "updatedAt",
+          "canonicalModel"
+        ]
+      },
+      "UpdateDocumentDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "expectedRevision": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Revisión persistida que el cliente leyó."
+          },
+          "canonicalModel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CanonicalUmlModel"
+              }
+            ],
+            "description": "Documento UML canónico completo, nunca un snapshot de React Flow."
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "canonicalModel"
+        ]
+      },
+      "CanonicalUmlModel": {
+        "title": "UML Class Designer canonical model",
+        "description": "Contrato semántico UML independiente de la proyección visual, persistencia y colaboración.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "project",
+          "diagram",
+          "metadata"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "enum": [
+              "0.1.0"
+            ],
+            "type": "string"
+          },
+          "project": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_project"
+          },
+          "diagram": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_diagram"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_metadata"
+          }
+        }
+      },
+      "CanonicalUmlModel_id": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_-]{1,63}$"
+      },
+      "CanonicalUmlModel_visibility": {
+        "enum": [
+          "public",
+          "protected",
+          "private",
+          "package"
+        ],
+        "type": "string"
+      },
+      "CanonicalUmlModel_multiplicity": {
+        "type": "string",
+        "description": "Valor simple o rango UML; admite 1, 0..1, *, 0..*, 1..* y rangos enteros personalizados.",
+        "pattern": "^(?:\\*|[0-9]+|[0-9]+\\.\\.(?:[0-9]+|\\*))$"
+      },
+      "CanonicalUmlModel_typeReference": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "elementId": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "collection": {
+            "type": "boolean",
+            "default": false
+          },
+          "nullable": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "CanonicalUmlModel_parameter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "type": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_typeReference"
+          },
+          "defaultValue": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "CanonicalUmlModel_attribute": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "visibility",
+          "type",
+          "isStatic",
+          "isReadOnly"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_visibility"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_typeReference"
+          },
+          "isStatic": {
+            "type": "boolean"
+          },
+          "isReadOnly": {
+            "type": "boolean"
+          },
+          "defaultValue": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "CanonicalUmlModel_operation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "visibility",
+          "parameters",
+          "returnType",
+          "isAbstract",
+          "isStatic"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_visibility"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CanonicalUmlModel_parameter"
+            }
+          },
+          "returnType": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_typeReference"
+          },
+          "isAbstract": {
+            "type": "boolean"
+          },
+          "isStatic": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CanonicalUmlModel_class": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "isAbstract",
+          "attributes",
+          "operations"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "kind": {
+            "enum": [
+              "class"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "isAbstract": {
+            "type": "boolean"
+          },
+          "stereotypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "uniqueItems": true
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CanonicalUmlModel_attribute"
+            }
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CanonicalUmlModel_operation"
+            }
+          }
+        }
+      },
+      "CanonicalUmlModel_interface": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "attributes",
+          "operations"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "kind": {
+            "enum": [
+              "interface"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "stereotypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "uniqueItems": true
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CanonicalUmlModel_attribute"
+            }
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CanonicalUmlModel_operation"
+            }
+          }
+        }
+      },
+      "CanonicalUmlModel_relationshipEnd": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "elementId",
+          "role",
+          "multiplicity",
+          "navigable"
+        ],
+        "properties": {
+          "elementId": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "multiplicity": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_multiplicity"
+          },
+          "navigable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CanonicalUmlModel_relationship": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "source",
+          "target"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "kind": {
+            "enum": [
+              "association",
+              "aggregation",
+              "composition",
+              "generalization",
+              "realization",
+              "dependency"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "source": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_relationshipEnd"
+          },
+          "target": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_relationshipEnd"
+          },
+          "associationClassId": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          }
+        }
+      },
+      "CanonicalUmlModel_position": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "elementId",
+          "x",
+          "y"
+        ],
+        "properties": {
+          "elementId": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "height": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true
+          }
+        }
+      },
+      "CanonicalUmlModel_visualProjection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "positions"
+        ],
+        "properties": {
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CanonicalUmlModel_position"
+            }
+          }
+        }
+      },
+      "CanonicalUmlModel_diagram": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "elements",
+          "relationships",
+          "visual"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "elements": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CanonicalUmlModel_class"
+                },
+                {
+                  "$ref": "#/components/schemas/CanonicalUmlModel_interface"
+                }
+              ]
+            }
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CanonicalUmlModel_relationship"
+            }
+          },
+          "visual": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_visualProjection"
+          }
+        }
+      },
+      "CanonicalUmlModel_project": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CanonicalUmlModel_id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "CanonicalUmlModel_metadata": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "createdAt",
+          "updatedAt",
+          "revision"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    }
   }
 }
