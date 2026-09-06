@@ -1,0 +1,20 @@
+services:
+  postgres-4a-test:
+    image: postgres:17-alpine
+    container_name: uml-class-designer-4a-postgres-test
+    environment:
+      POSTGRES_DB: uml_designer_4a_test
+      POSTGRES_USER: uml_designer_4a_test
+      POSTGRES_PASSWORD: local_test_only
+    ports:
+      - "127.0.0.1:55434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uml_designer_4a_test -d uml_designer_4a_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - uml_class_designer_4a_test_data:/var/lib/postgresql/data
+
+volumes:
+  uml_class_designer_4a_test_data:

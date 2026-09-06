@@ -3,7 +3,8 @@
   "rootDir": "..",
   "testRegex": "test/.*\\.e2e-spec\\.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "tsconfig.json" }]
+    "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.json" }]
   },
-  "testEnvironment": "node"
+  "testEnvironment": "node",
+  "testTimeout": 30000
 }

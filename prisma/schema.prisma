@@ -14,14 +14,42 @@ enum ProjectRole {
 }
 
 model User {
-  id               String             @id @default(uuid()) @db.Uuid
-  email            String             @unique
-  displayName      String
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  ownedProjects    Project[]          @relation("ProjectOwner")
-  memberships      ProjectMember[]
+  id                String             @id @default(uuid()) @db.Uuid
+  email             String             @unique
+  displayName       String
+  passwordHash      String
+  sessions          AuthSession[]
+  ownedProjects     Project[]          @relation("ProjectOwner")
+  memberships       ProjectMember[]
+  createdDocuments  UmlDocument[]      @relation("DocumentCreator")
+  updatedDocuments  UmlDocument[]      @relation("DocumentUpdater")
   authoredRevisions DocumentRevision[] @relation("RevisionAuthor")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model AuthSession {
+  id             String                 @id @default(uuid()) @db.Uuid
+  userId         String                 @db.Uuid
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash      String                 @unique
+  consumedTokens ConsumedRefreshToken[]
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ConsumedRefreshToken {
+  tokenHash  String      @id
+  sessionId  String      @db.Uuid
+  session    AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  consumedAt DateTime    @default(now())
+
+  @@index([sessionId])
 }
 
 model Project {
@@ -29,7 +57,7 @@ model Project {
   name        String
   description String?
   ownerId     String          @db.Uuid
-  owner       User            @relation("ProjectOwner", fields: [ownerId], references: [id])
+  owner       User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   members     ProjectMember[]
   documents   UmlDocument[]
   createdAt   DateTime        @default(now())
@@ -44,37 +72,44 @@ model ProjectMember {
   role      ProjectRole
   project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  joinedAt  DateTime    @default(now())
+  createdAt DateTime    @default(now())
 
   @@id([projectId, userId])
   @@index([userId])
 }
 
 model UmlDocument {
-  id            String             @id @default(uuid()) @db.Uuid
-  projectId     String             @db.Uuid
-  project       Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name          String
-  canonicalJson Json
-  schemaVersion String
-  revision      Int                @default(0)
-  revisions     DocumentRevision[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id             String             @id @default(uuid()) @db.Uuid
+  projectId      String             @db.Uuid
+  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name           String
+  canonicalModel Json
+  schemaVersion  String
+  revision       Int                @default(0)
+  createdById    String             @db.Uuid
+  createdBy      User               @relation("DocumentCreator", fields: [createdById], references: [id])
+  updatedById    String             @db.Uuid
+  updatedBy      User               @relation("DocumentUpdater", fields: [updatedById], references: [id])
+  revisions      DocumentRevision[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
+  @@unique([projectId, name])
   @@index([projectId])
+  @@index([createdById])
+  @@index([updatedById])
 }
 
 model DocumentRevision {
-  id            String      @id @default(uuid()) @db.Uuid
-  documentId    String      @db.Uuid
-  document      UmlDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  revision      Int
-  canonicalJson Json
-  schemaVersion String
-  authorId      String      @db.Uuid
-  author        User        @relation("RevisionAuthor", fields: [authorId], references: [id])
-  createdAt     DateTime    @default(now())
+  id             String      @id @default(uuid()) @db.Uuid
+  documentId     String      @db.Uuid
+  document       UmlDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  revision       Int
+  canonicalModel Json
+  schemaVersion  String
+  authorId       String      @db.Uuid
+  author         User        @relation("RevisionAuthor", fields: [authorId], references: [id])
+  createdAt      DateTime    @default(now())
 
   @@unique([documentId, revision])
   @@index([authorId])
