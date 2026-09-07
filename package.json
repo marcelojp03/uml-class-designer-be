@@ -23,6 +23,7 @@
     "db:test:down": "docker compose -f docker-compose.test.yml down --volumes",
     "db:test:migrate": "node --env-file=.env.test.example node_modules/prisma/build/index.js migrate deploy",
     "db:test:status": "node --env-file=.env.test.example node_modules/prisma/build/index.js migrate status",
+    "smoke:production": "node --env-file=.env.test.example -r ts-node/register scripts/production-smoke.ts",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm prisma:validate && pnpm openapi:check && pnpm build"
   },
   "dependencies": {
