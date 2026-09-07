@@ -7,7 +7,7 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
-    "start": "node dist/src/main.js",
+    "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint -c oxlint.config.mjs .",
     "format:check": "oxfmt -c oxfmt.config.mjs --check \"**/*.{ts,json}\" \"!contracts/openapi.json\"",

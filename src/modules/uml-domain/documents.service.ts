@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { Prisma, ProjectRole } from '../../generated/prisma';
+import { Prisma, ProjectRole } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CanonicalModelValidator, UML_SCHEMA_VERSION } from './canonical-model.validator';
 import type { CreateDocumentDto, UpdateDocumentDto } from './dto/document.dto';

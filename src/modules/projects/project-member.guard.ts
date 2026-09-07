@@ -9,7 +9,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { isUUID } from 'class-validator';
 import type { Request } from 'express';
-import type { ProjectRole } from '../../generated/prisma';
+import type { ProjectRole } from '@prisma/client';
 import type { AuthenticatedPrincipal } from '../auth/auth.types';
 import { PrismaService } from '../database/prisma.service';
 import { PROJECT_ROLES_KEY } from './project-access.constants';

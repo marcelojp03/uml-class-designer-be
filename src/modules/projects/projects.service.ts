@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ProjectRole } from '../../generated/prisma';
+import { Prisma, ProjectRole } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { AddProjectMemberDto, CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
 import type { ProjectMemberResponseDto, ProjectResponseDto } from './dto/project-response.dto';

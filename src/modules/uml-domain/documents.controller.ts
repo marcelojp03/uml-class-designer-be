@@ -24,7 +24,7 @@ import {
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
-import { ProjectRole } from '../../generated/prisma';
+import { ProjectRole } from '@prisma/client';
 import { ACCESS_TOKEN_SECURITY_NAME } from '../auth/auth.constants';
 import { CurrentUser } from '../auth/auth.decorators';
 import type { AuthenticatedPrincipal } from '../auth/auth.types';

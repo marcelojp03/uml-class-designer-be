@@ -5,7 +5,7 @@ import { isUUID } from 'class-validator';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { argon2id, hash as hashPassword, verify as verifyPassword } from 'argon2';
 import type { AppConfiguration } from '../../config/app.config';
-import { Prisma } from '../../generated/prisma';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { LoginDto, RegisterDto } from './dto/auth.dto';
 import type { AuthResult, SafeUser } from './auth.types';
