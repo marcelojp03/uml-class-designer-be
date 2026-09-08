@@ -1,13 +1,9 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
-import { JwtService } from '@nestjs/jwt';
-import { isUUID } from 'class-validator';
 import type { Request } from 'express';
-import type { AppConfiguration } from '../../config/app.config';
-import { PrismaService } from '../database/prisma.service';
 import { IS_PUBLIC_KEY } from './auth.constants';
-import type { AccessTokenClaims, AuthenticatedPrincipal } from './auth.types';
+import type { AuthenticatedPrincipal } from './auth.types';
+import { AccessTokenVerifierService } from './access-token-verifier.service';
 
 type AuthenticatedRequest = Request & { user?: AuthenticatedPrincipal };
 
@@ -15,12 +11,14 @@ type AuthenticatedRequest = Request & { user?: AuthenticatedPrincipal };
 export class AccessTokenGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
+    private readonly accessTokenVerifier: AccessTokenVerifierService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (context.getType() !== 'http') {
+      return true;
+    }
+
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -31,41 +29,7 @@ export class AccessTokenGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractBearerToken(request);
-    const config = this.configService.getOrThrow<AppConfiguration>('app');
-
-    let payload: AccessTokenClaims;
-    try {
-      payload = await this.jwtService.verifyAsync<AccessTokenClaims>(token, {
-        secret: config.auth.jwtSecret,
-        algorithms: ['HS256'],
-        issuer: config.auth.jwtIssuer,
-        audience: config.auth.jwtAudience,
-      });
-    } catch {
-      throw new UnauthorizedException('Authentication is required.');
-    }
-
-    if (payload.typ !== 'access' || !isUUID(payload.sub, '4') || !isUUID(payload.sid, '4')) {
-      throw new UnauthorizedException('Authentication is required.');
-    }
-
-    const session = await this.prisma.authSession.findFirst({
-      where: {
-        id: payload.sid,
-        userId: payload.sub,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      select: {
-        id: true,
-        user: { select: { id: true, email: true, displayName: true } },
-      },
-    });
-    if (!session) {
-      throw new UnauthorizedException('Authentication is required.');
-    }
-
-    request.user = { ...session.user, sessionId: session.id };
+    request.user = await this.accessTokenVerifier.verify(token);
     return true;
   }
 

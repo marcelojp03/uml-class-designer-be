@@ -1,0 +1,512 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uml-class-designer.local/contracts/collaboration/1.0.0",
+  "title": "UML Class Designer collaboration protocol",
+  "description": "Contrato versionado de comandos incrementales para colaboración autoritativa.",
+  "$defs": {
+    "uuidV4": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "errorCode": {
+      "enum": [
+        "UNAUTHENTICATED",
+        "SESSION_REVOKED",
+        "FORBIDDEN",
+        "NOT_FOUND",
+        "NOT_JOINED",
+        "INVALID_COMMAND",
+        "INVALID_MODEL",
+        "REVISION_CONFLICT",
+        "ELEMENT_LOCKED",
+        "OPERATION_ID_REUSED",
+        "RATE_LIMITED",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "code", "message"],
+      "properties": {
+        "ok": { "const": false },
+        "operationId": { "$ref": "#/$defs/uuidV4" },
+        "code": { "$ref": "#/$defs/errorCode" },
+        "message": { "type": "string", "maxLength": 200 },
+        "currentRevision": { "type": "integer", "minimum": 0 },
+        "resyncRequired": { "type": "boolean" }
+      }
+    },
+    "participant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["userId", "socketId", "joinedAt", "lastSeen"],
+      "properties": {
+        "userId": { "$ref": "#/$defs/uuidV4" },
+        "socketId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "joinedAt": { "$ref": "#/$defs/timestamp" },
+        "lastSeen": { "$ref": "#/$defs/timestamp" },
+        "selection": {
+          "type": "array",
+          "items": {
+            "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 20
+        },
+        "cursor": { "$ref": "#/$defs/coordinate" }
+      }
+    },
+    "elementLock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId", "elementId", "userId", "socketId", "leaseId", "expiresAt"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "elementId": {
+          "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+        },
+        "userId": { "$ref": "#/$defs/uuidV4" },
+        "socketId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "leaseId": { "$ref": "#/$defs/uuidV4" },
+        "expiresAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "commandAccepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "operationId", "documentId", "revision", "committedAt"],
+      "properties": {
+        "ok": { "const": true },
+        "operationId": { "$ref": "#/$defs/uuidV4" },
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "committedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "documentJoinAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "documentId", "revision", "resyncRequired", "participants", "locks"],
+      "properties": {
+        "ok": { "const": true },
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "canonicalModel": { "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0" },
+        "resyncRequired": { "type": "boolean" },
+        "participants": { "type": "array", "items": { "$ref": "#/$defs/participant" } },
+        "locks": { "type": "array", "items": { "$ref": "#/$defs/elementLock" } }
+      }
+    },
+    "documentOperationEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "documentId",
+        "actorId",
+        "baseRevision",
+        "revision",
+        "command",
+        "committedAt"
+      ],
+      "properties": {
+        "operationId": { "$ref": "#/$defs/uuidV4" },
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "actorId": { "$ref": "#/$defs/uuidV4" },
+        "baseRevision": { "type": "integer", "minimum": 0 },
+        "revision": { "type": "integer", "minimum": 0 },
+        "command": { "$ref": "#/$defs/umlCommand" },
+        "committedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "presenceChanged": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId", "participants"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "participants": { "type": "array", "items": { "$ref": "#/$defs/participant" } }
+      }
+    },
+    "lockChanged": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId", "locks"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "locks": { "type": "array", "items": { "$ref": "#/$defs/elementLock" } }
+      }
+    },
+    "resyncRequired": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId", "revision", "resyncRequired"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "resyncRequired": { "const": true }
+      }
+    },
+    "documentDeleted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId"],
+      "properties": { "documentId": { "$ref": "#/$defs/uuidV4" } }
+    },
+    "documentAccessRevoked": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "documentId", "code", "message"],
+      "properties": {
+        "ok": { "const": false },
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "code": { "const": "FORBIDDEN" },
+        "message": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "classifier": {
+      "oneOf": [
+        { "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/class" },
+        { "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/interface" }
+      ]
+    },
+    "coordinate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+        "y": { "type": "number", "minimum": -1000000, "maximum": 1000000 }
+      }
+    },
+    "commandBase": {
+      "type": "object",
+      "required": ["type", "timestamp"],
+      "properties": {
+        "type": { "type": "string" },
+        "timestamp": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "umlCommand": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "classifier", "position"],
+          "properties": {
+            "type": { "const": "classifier.create" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "classifier": { "$ref": "#/$defs/classifier" },
+            "position": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/position"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "elementId", "classifier"],
+          "properties": {
+            "type": { "const": "classifier.update" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "elementId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "classifier": { "$ref": "#/$defs/classifier" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "elementId", "position"],
+          "properties": {
+            "type": { "const": "classifier.move" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "elementId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "position": { "$ref": "#/$defs/coordinate" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "elementId"],
+          "properties": {
+            "type": { "const": "classifier.delete" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "elementId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "sourceElementId", "classifier", "position"],
+          "properties": {
+            "type": { "const": "classifier.duplicate" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "sourceElementId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "classifier": { "$ref": "#/$defs/classifier" },
+            "position": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/position"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "classifierId", "attribute"],
+          "properties": {
+            "type": { "const": "attribute.add" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "classifierId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "attribute": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/attribute"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "classifierId", "attributeId", "attribute"],
+          "properties": {
+            "type": { "const": "attribute.update" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "classifierId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "attributeId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "attribute": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/attribute"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "classifierId", "attributeId"],
+          "properties": {
+            "type": { "const": "attribute.delete" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "classifierId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "attributeId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "classifierId", "operation"],
+          "properties": {
+            "type": { "const": "operation.add" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "classifierId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "operation": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/operation"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "classifierId", "operationId", "operation"],
+          "properties": {
+            "type": { "const": "operation.update" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "classifierId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "operationId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "operation": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/operation"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "classifierId", "operationId"],
+          "properties": {
+            "type": { "const": "operation.delete" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "classifierId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "operationId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "relationship"],
+          "properties": {
+            "type": { "const": "relationship.create" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "relationship": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/relationship"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "relationshipId", "relationship"],
+          "properties": {
+            "type": { "const": "relationship.update" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "relationshipId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "relationship": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/relationship"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "relationshipId"],
+          "properties": {
+            "type": { "const": "relationship.delete" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "relationshipId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp", "relationshipId", "classifier", "position"],
+          "properties": {
+            "type": { "const": "association-class.create" },
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "relationshipId": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+            },
+            "classifier": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/class"
+            },
+            "position": {
+              "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/position"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "timestamp"],
+          "properties": {
+            "type": { "const": "diagram.clear" },
+            "timestamp": { "$ref": "#/$defs/timestamp" }
+          }
+        }
+      ]
+    },
+    "documentJoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "knownRevision": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "documentLeave": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId"],
+      "properties": { "documentId": { "$ref": "#/$defs/uuidV4" } }
+    },
+    "documentCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operationId", "documentId", "baseRevision", "command"],
+      "properties": {
+        "operationId": { "$ref": "#/$defs/uuidV4" },
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "baseRevision": { "type": "integer", "minimum": 0 },
+        "command": { "$ref": "#/$defs/umlCommand" }
+      }
+    },
+    "presenceUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "selection": {
+          "type": "array",
+          "items": {
+            "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 20
+        },
+        "cursor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+            "y": { "type": "number", "minimum": -1000000, "maximum": 1000000 }
+          }
+        }
+      }
+    },
+    "lockAcquire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId", "elementId"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "elementId": {
+          "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+        }
+      }
+    },
+    "lockRenew": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId", "elementId", "leaseId"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "elementId": {
+          "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+        },
+        "leaseId": { "$ref": "#/$defs/uuidV4" }
+      }
+    },
+    "lockRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentId", "elementId", "leaseId"],
+      "properties": {
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "elementId": {
+          "$ref": "https://uml-class-designer.local/contracts/uml-model/0.1.0#/$defs/id"
+        },
+        "leaseId": { "$ref": "#/$defs/uuidV4" }
+      }
+    }
+  }
+}

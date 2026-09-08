@@ -23,6 +23,7 @@ model User {
   createdDocuments  UmlDocument[]      @relation("DocumentCreator")
   updatedDocuments  UmlDocument[]      @relation("DocumentUpdater")
   authoredRevisions DocumentRevision[] @relation("RevisionAuthor")
+  authoredOperations DocumentOperation[] @relation("OperationActor")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 }
@@ -90,6 +91,7 @@ model UmlDocument {
   updatedById    String             @db.Uuid
   updatedBy      User               @relation("DocumentUpdater", fields: [updatedById], references: [id])
   revisions      DocumentRevision[]
+  operations     DocumentOperation[]
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -112,4 +114,23 @@ model DocumentRevision {
 
   @@unique([documentId, revision])
   @@index([authorId])
+}
+
+model DocumentOperation {
+  id                 String      @id @default(uuid()) @db.Uuid
+  operationId        String      @db.Uuid
+  documentId         String      @db.Uuid
+  document           UmlDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  actorId            String      @db.Uuid
+  actor              User        @relation("OperationActor", fields: [actorId], references: [id], onDelete: Restrict)
+  baseRevision       Int
+  resultingRevision  Int
+  command            Json
+  commandFingerprint String      @db.Char(64)
+  committedAt        DateTime    @default(now())
+
+  @@unique([documentId, operationId])
+  @@index([documentId, resultingRevision])
+  @@index([documentId, baseRevision])
+  @@index([actorId])
 }

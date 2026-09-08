@@ -3,7 +3,8 @@ import { createConfiguredApp } from './bootstrap';
 
 async function bootstrap(): Promise<void> {
   const { app, config } = await createConfiguredApp();
-  await app.listen(config.port, '127.0.0.1');
+  app.enableShutdownHooks();
+  await app.listen(config.port, config.host);
 }
 
 void bootstrap();

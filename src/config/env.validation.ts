@@ -4,8 +4,30 @@ import { LOCAL_DEVELOPMENT_JWT_SECRET, TEST_JWT_SECRET } from './app.config';
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').required(),
   PORT: Joi.number().port().default(3000),
+  HOST: Joi.string()
+    .max(253)
+    .pattern(/^[A-Za-z0-9.:-]+$/)
+    .default('127.0.0.1'),
   TRUST_PROXY_HOPS: Joi.number().integer().min(0).max(5).default(0),
-  CORS_ORIGINS: Joi.string().default('http://localhost:5173'),
+  CORS_ORIGINS: Joi.string()
+    .custom((value: string, helpers) => {
+      const origins = value.split(',').map((origin) => origin.trim());
+      if (origins.length === 0 || origins.some((origin) => !origin || origin === '*')) {
+        return helpers.error('any.invalid');
+      }
+      for (const origin of origins) {
+        try {
+          const parsed = new URL(origin);
+          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.origin !== origin) {
+            return helpers.error('any.invalid');
+          }
+        } catch {
+          return helpers.error('any.invalid');
+        }
+      }
+      return value;
+    })
+    .default('http://localhost:5173'),
   DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgresql', 'postgres'] })
     .required(),
@@ -19,6 +41,19 @@ export const envValidationSchema = Joi.object({
     .default('uml_refresh'),
   AUTH_REFRESH_COOKIE_SECURE: Joi.boolean().truthy('true').falsy('false').default(false),
   AUTH_REFRESH_COOKIE_SAME_SITE: Joi.string().valid('strict', 'lax', 'none').default('strict'),
+  COLLABORATION_SOCKET_MAX_PAYLOAD_BYTES: Joi.number()
+    .integer()
+    .min(1024)
+    .max(1_048_576)
+    .default(65_536),
+  COLLABORATION_PING_TIMEOUT_MS: Joi.number().integer().min(5000).max(120_000).default(20_000),
+  COLLABORATION_PING_INTERVAL_MS: Joi.number().integer().min(5000).max(120_000).default(25_000),
+  COLLABORATION_COMMAND_LIMIT: Joi.number().integer().min(1).max(1000).default(30),
+  COLLABORATION_COMMAND_WINDOW_MS: Joi.number().integer().min(1000).max(60_000).default(10_000),
+  COLLABORATION_PRESENCE_MIN_INTERVAL_MS: Joi.number().integer().min(50).max(5000).default(100),
+  COLLABORATION_LOCK_TTL_SECONDS: Joi.number().integer().min(5).max(120).default(30),
+  COLLABORATION_MAX_PARTICIPANTS_PER_DOCUMENT: Joi.number().integer().min(1).max(500).default(100),
+  COLLABORATION_MAX_DOCUMENTS_PER_SOCKET: Joi.number().integer().min(1).max(100).default(20),
 }).custom((environment: Record<string, unknown>, helpers) => {
   if (
     environment.NODE_ENV === 'production' &&

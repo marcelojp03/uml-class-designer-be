@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma, ProjectRole } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CanonicalModelValidator, UML_SCHEMA_VERSION } from './canonical-model.validator';
+import { DocumentCollaborationEventBus } from './document-collaboration-event-bus.service';
 import type { CreateDocumentDto, UpdateDocumentDto } from './dto/document.dto';
 import type { DocumentResponseDto, DocumentSummaryResponseDto } from './dto/document-response.dto';
 
@@ -26,6 +27,7 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly canonicalValidator: CanonicalModelValidator,
+    private readonly collaborationEvents: DocumentCollaborationEventBus,
   ) {}
 
   async list(projectId: string, userId: string): Promise<DocumentSummaryResponseDto[]> {
@@ -183,7 +185,14 @@ export class DocumentsService {
         });
         return persisted;
       });
-      return this.toResponse(document);
+      const response = this.toResponse(document);
+      this.collaborationEvents.publish({
+        type: 'resync-required',
+        documentId,
+        revision: response.revision,
+        activeElementIds: this.activeElementIds(response.canonicalModel),
+      });
+      return response;
     } catch (error: unknown) {
       if (this.isUniqueConstraintError(error)) {
         throw new ConflictException('A document with that name already exists in this project.');
@@ -205,6 +214,7 @@ export class DocumentsService {
     if (deleted.count !== 1) {
       throw new NotFoundException('Document not found.');
     }
+    this.collaborationEvents.publish({ type: 'deleted', documentId });
   }
 
   private toResponse(document: SelectedDocument): DocumentResponseDto {
@@ -216,5 +226,10 @@ export class DocumentsService {
 
   private isUniqueConstraintError(error: unknown): boolean {
     return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  }
+
+  private activeElementIds(canonicalModel: Record<string, unknown>): string[] {
+    const diagram = canonicalModel.diagram as { elements: Array<{ id: string }> };
+    return diagram.elements.map((element) => element.id);
   }
 }

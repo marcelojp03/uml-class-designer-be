@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AppModule } from './app.module';
 import type { AppConfiguration } from './config/app.config';
+import { ConfiguredSocketIoAdapter } from './modules/uml-domain/configured-socket-io.adapter';
 
 const CANONICAL_SCHEMA_COMPONENT = 'CanonicalUmlModel';
 
@@ -72,6 +73,7 @@ export async function createConfiguredApp() {
   });
   const configService = app.get(ConfigService);
   const config = configService.getOrThrow<AppConfiguration>('app');
+  app.useWebSocketAdapter(new ConfiguredSocketIoAdapter(app, config));
 
   app.getHttpAdapter().getInstance().disable('x-powered-by');
   if (config.trustProxyHops > 0) {

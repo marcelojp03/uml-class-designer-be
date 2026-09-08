@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import type { AppConfiguration } from '../../config/app.config';
 import { AccessTokenGuard } from './access-token.guard';
+import { AccessTokenVerifierService } from './access-token-verifier.service';
 import { AuthIntentGuard } from './auth-intent.guard';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -17,7 +18,7 @@ import { AuthService } from './auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AccessTokenGuard, AuthIntentGuard],
-  exports: [AccessTokenGuard],
+  providers: [AuthService, AccessTokenGuard, AccessTokenVerifierService, AuthIntentGuard],
+  exports: [AccessTokenGuard, AccessTokenVerifierService],
 })
 export class AuthModule {}
