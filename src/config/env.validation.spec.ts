@@ -52,6 +52,16 @@ describe('environment validation', () => {
     expect(result.error).toBeDefined();
   });
 
+  it.each(['*', 'https://designer.example.com, *', 'ftp://designer.example.com', 'not-an-origin'])(
+    'rejects unsafe CORS_ORIGINS value %s',
+    (corsOrigins) => {
+      expect(
+        envValidationSchema.validate({ ...baseProductionEnvironment, CORS_ORIGINS: corsOrigins })
+          .error,
+      ).toBeDefined();
+    },
+  );
+
   it('accepts an explicit production secret and secure cookie', () => {
     const result = envValidationSchema.validate(baseProductionEnvironment);
     expect(result.error).toBeUndefined();
