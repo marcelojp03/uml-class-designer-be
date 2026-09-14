@@ -2,10 +2,11 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { isUUID } from 'class-validator';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { argon2id, hash as hashPassword, verify as verifyPassword } from 'argon2';
 import type { AppConfiguration } from '../../config/app.config';
 import { Prisma } from '@prisma/client';
+import { AccessTokenVerifierService } from './access-token-verifier.service';
 import { PrismaService } from '../database/prisma.service';
 import type { LoginDto, RegisterDto } from './dto/auth.dto';
 import type { AuthResult, SafeUser } from './auth.types';
@@ -22,12 +23,17 @@ const PASSWORD_HASH_OPTIONS = {
   parallelism: 1,
 } as const;
 
+type ParsedRefreshToken =
+  | { format: 'legacy'; sessionId: string; token: string }
+  | { format: 'versioned'; sessionId: string; token: string; sequence: number };
+
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly accessTokenVerifier: AccessTokenVerifierService,
   ) {}
 
   async register(input: RegisterDto): Promise<AuthResult> {
@@ -51,6 +57,7 @@ export class AuthService {
             id: session.id,
             userId: createdUser.id,
             tokenHash: this.hashRefreshToken(session.token),
+            refreshSequence: session.sequence,
             expiresAt,
           },
         });
@@ -87,6 +94,7 @@ export class AuthService {
         id: session.id,
         userId: user.id,
         tokenHash: this.hashRefreshToken(session.token),
+        refreshSequence: session.sequence,
         expiresAt,
       },
     });
@@ -100,26 +108,22 @@ export class AuthService {
       throw new UnauthorizedException('Refresh session is invalid or expired.');
     }
 
-    const nextSession = this.newSessionToken(parsedToken.sessionId);
+    const nextSequence = parsedToken.format === 'versioned' ? parsedToken.sequence + 1 : 1;
+    if (!Number.isSafeInteger(nextSequence)) {
+      throw new UnauthorizedException('Refresh session is invalid or expired.');
+    }
+    const nextSession = this.newSessionToken(parsedToken.sessionId, nextSequence);
     const presentedHash = this.hashRefreshToken(parsedToken.token);
     const nextHash = this.hashRefreshToken(nextSession.token);
-    const rotated = await this.prisma.$queryRaw<Array<{ sessionId: string }>>(Prisma.sql`
-      WITH rotated AS (
-        UPDATE "AuthSession"
-        SET "tokenHash" = ${nextHash}, "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = CAST(${parsedToken.sessionId} AS UUID)
-          AND "tokenHash" = ${presentedHash}
-          AND "revokedAt" IS NULL
-          AND "expiresAt" > CURRENT_TIMESTAMP
-        RETURNING "id"
-      )
-      INSERT INTO "ConsumedRefreshToken" ("tokenHash", "sessionId", "consumedAt")
-      SELECT ${presentedHash}, "id", CURRENT_TIMESTAMP FROM rotated
-      RETURNING "sessionId"
-    `);
+    const rotated = await this.rotateRefreshToken(
+      parsedToken,
+      presentedHash,
+      nextHash,
+      nextSequence,
+    );
 
     if (rotated.length !== 1) {
-      await this.revokeReplayedSession(parsedToken.sessionId, presentedHash);
+      await this.revokeReplayedSession(parsedToken, presentedHash);
       throw new UnauthorizedException('Refresh session is invalid or expired.');
     }
 
@@ -140,20 +144,30 @@ export class AuthService {
     }
 
     const presentedHash = this.hashRefreshToken(parsedToken.token);
-    await this.prisma.$executeRaw(Prisma.sql`
+    const logoutCondition =
+      parsedToken.format === 'versioned'
+        ? Prisma.sql`session."refreshSequence" >= ${parsedToken.sequence}`
+        : Prisma.sql`
+            session."tokenHash" = ${presentedHash}
+            OR EXISTS (
+              SELECT 1 FROM "ConsumedRefreshToken" consumed
+              WHERE consumed."sessionId" = session."id"
+                AND consumed."tokenHash" = ${presentedHash}
+            )
+          `;
+    const revoked = await this.prisma.$executeRaw(Prisma.sql`
       UPDATE "AuthSession" AS session
       SET "revokedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
       WHERE session."id" = CAST(${parsedToken.sessionId} AS UUID)
         AND session."revokedAt" IS NULL
-        AND (
-          session."tokenHash" = ${presentedHash}
-          OR EXISTS (
-            SELECT 1 FROM "ConsumedRefreshToken" consumed
-            WHERE consumed."sessionId" = session."id"
-              AND consumed."tokenHash" = ${presentedHash}
-          )
-        )
+        AND (${logoutCondition})
     `);
+    if (revoked > 0) {
+      await this.prisma.consumedRefreshToken.deleteMany({
+        where: { sessionId: parsedToken.sessionId },
+      });
+      this.accessTokenVerifier.notifySessionRevoked(parsedToken.sessionId);
+    }
   }
 
   private async buildAuthResult(
@@ -183,25 +197,41 @@ export class AuthService {
     };
   }
 
-  private newSessionToken(sessionId: string = randomUUID()): { id: string; token: string } {
-    const secret = randomBytes(32).toString('base64url');
-    return { id: sessionId, token: `${sessionId}.${secret}` };
+  private newSessionToken(
+    sessionId: string = randomUUID(),
+    sequence = 0,
+  ): { id: string; token: string; sequence: number } {
+    return {
+      id: sessionId,
+      token: `${sessionId}.${sequence}.${this.refreshTokenSignature(sessionId, sequence)}`,
+      sequence,
+    };
   }
 
-  private parseRefreshToken(
-    value: string | undefined,
-  ): { sessionId: string; token: string } | null {
+  private parseRefreshToken(value: string | undefined): ParsedRefreshToken | null {
     if (!value || value.length > 256) {
       return null;
     }
-    const [sessionId, secret, extra] = value.split('.');
-    if (!sessionId || !secret || extra || !isUUID(sessionId, '4')) {
+    const [sessionId, middle, signature, extra] = value.split('.');
+    if (!sessionId || !middle || !isUUID(sessionId, '4')) {
       return null;
     }
-    if (!/^[A-Za-z0-9_-]{43}$/.test(secret)) {
+    if (signature === undefined) {
+      return /^[A-Za-z0-9_-]{43}$/.test(middle)
+        ? { format: 'legacy', sessionId, token: value }
+        : null;
+    }
+    if (extra || !/^(?:0|[1-9][0-9]*)$/.test(middle) || !/^[A-Za-z0-9_-]{43}$/.test(signature)) {
       return null;
     }
-    return { sessionId, token: value };
+    const sequence = Number(middle);
+    if (
+      !Number.isSafeInteger(sequence) ||
+      !this.isRefreshTokenSignatureValid(sessionId, sequence, signature)
+    ) {
+      return null;
+    }
+    return { format: 'versioned', sessionId, token: value, sequence };
   }
 
   private refreshExpiry(): Date {
@@ -213,18 +243,82 @@ export class AuthService {
     return createHash('sha256').update(token, 'utf8').digest('hex');
   }
 
-  private async revokeReplayedSession(sessionId: string, tokenHash: string): Promise<void> {
-    await this.prisma.$executeRaw(Prisma.sql`
+  private refreshTokenSignature(sessionId: string, sequence: number): string {
+    return createHmac(
+      'sha256',
+      this.configService.getOrThrow<AppConfiguration>('app').auth.jwtSecret,
+    )
+      .update(`${sessionId}.${sequence}`, 'utf8')
+      .digest('base64url');
+  }
+
+  private isRefreshTokenSignatureValid(
+    sessionId: string,
+    sequence: number,
+    signature: string,
+  ): boolean {
+    const expected = Buffer.from(this.refreshTokenSignature(sessionId, sequence));
+    const presented = Buffer.from(signature);
+    return expected.length === presented.length && timingSafeEqual(expected, presented);
+  }
+
+  private async rotateRefreshToken(
+    parsedToken: ParsedRefreshToken,
+    presentedHash: string,
+    nextHash: string,
+    nextSequence: number,
+  ): Promise<Array<{ sessionId: string }>> {
+    const expectedSequence = parsedToken.format === 'versioned' ? parsedToken.sequence : 0;
+    return this.prisma.$queryRaw<Array<{ sessionId: string }>>(Prisma.sql`
+      WITH rotated AS (
+        UPDATE "AuthSession"
+        SET
+          "tokenHash" = ${nextHash},
+          "refreshSequence" = ${nextSequence},
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = CAST(${parsedToken.sessionId} AS UUID)
+          AND "tokenHash" = ${presentedHash}
+          AND "refreshSequence" = ${expectedSequence}
+          AND "revokedAt" IS NULL
+          AND "expiresAt" > CURRENT_TIMESTAMP
+        RETURNING "id"
+      ), consumed AS (
+        INSERT INTO "ConsumedRefreshToken" ("tokenHash", "sessionId", "consumedAt")
+        SELECT ${presentedHash}, "id", CURRENT_TIMESTAMP
+        FROM rotated
+        WHERE ${parsedToken.format === 'legacy'}
+      )
+      SELECT "id" AS "sessionId" FROM rotated
+    `);
+  }
+
+  private async revokeReplayedSession(
+    parsedToken: ParsedRefreshToken,
+    tokenHash: string,
+  ): Promise<void> {
+    const replayCondition =
+      parsedToken.format === 'versioned'
+        ? Prisma.sql`session."refreshSequence" > ${parsedToken.sequence}`
+        : Prisma.sql`
+            EXISTS (
+              SELECT 1 FROM "ConsumedRefreshToken" consumed
+              WHERE consumed."sessionId" = session."id"
+                AND consumed."tokenHash" = ${tokenHash}
+            )
+          `;
+    const revoked = await this.prisma.$executeRaw(Prisma.sql`
       UPDATE "AuthSession" AS session
       SET "revokedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
-      WHERE session."id" = CAST(${sessionId} AS UUID)
+      WHERE session."id" = CAST(${parsedToken.sessionId} AS UUID)
         AND session."revokedAt" IS NULL
-        AND EXISTS (
-          SELECT 1 FROM "ConsumedRefreshToken" consumed
-          WHERE consumed."sessionId" = session."id"
-            AND consumed."tokenHash" = ${tokenHash}
-        )
+        AND ${replayCondition}
     `);
+    if (revoked > 0) {
+      await this.prisma.consumedRefreshToken.deleteMany({
+        where: { sessionId: parsedToken.sessionId },
+      });
+      this.accessTokenVerifier.notifySessionRevoked(parsedToken.sessionId);
+    }
   }
 
   private normalizeEmail(email: string): string {

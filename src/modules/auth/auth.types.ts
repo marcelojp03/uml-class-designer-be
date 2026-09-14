@@ -6,12 +6,14 @@ export interface SafeUser {
 
 export interface AuthenticatedPrincipal extends SafeUser {
   sessionId: string;
+  accessTokenExpiresAt: number;
 }
 
 export interface AccessTokenClaims {
   sub: string;
   sid: string;
   typ: 'access';
+  exp: number;
 }
 
 export interface AuthResult {

@@ -77,7 +77,7 @@ export async function createConfiguredApp() {
 
   app.getHttpAdapter().getInstance().disable('x-powered-by');
   if (config.trustProxyHops > 0) {
-    app.set('trust proxy', config.trustProxyHops);
+    app.set('trust proxy', config.trustProxyAddresses);
   }
   app.use(helmet());
   app.useBodyParser('json', { limit: '1mb' });

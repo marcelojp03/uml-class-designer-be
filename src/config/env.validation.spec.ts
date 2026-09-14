@@ -4,6 +4,7 @@ import { envValidationSchema } from './env.validation';
 const baseProductionEnvironment = {
   NODE_ENV: 'production',
   TRUST_PROXY_HOPS: 1,
+  TRUST_PROXY_ADDRESSES: '127.0.0.1',
   DATABASE_URL: 'postgresql://user:password@localhost:5432/database',
   CORS_ORIGINS: 'https://designer.example.com',
   AUTH_JWT_SECRET: 'production-secret-with-at-least-thirty-two-characters',
@@ -48,6 +49,40 @@ describe('environment validation', () => {
     const result = envValidationSchema.validate({
       ...baseProductionEnvironment,
       TRUST_PROXY_HOPS: 0,
+    });
+    expect(result.error).toBeDefined();
+  });
+
+  it('requires explicit trusted proxy addresses when proxy headers are enabled', () => {
+    const result = envValidationSchema.validate({
+      ...baseProductionEnvironment,
+      TRUST_PROXY_ADDRESSES: '',
+    });
+    expect(result.error).toBeDefined();
+  });
+
+  it('allows no trusted proxy addresses when proxy headers are disabled', () => {
+    const result = envValidationSchema.validate({
+      ...baseProductionEnvironment,
+      NODE_ENV: 'development',
+      TRUST_PROXY_HOPS: 0,
+      TRUST_PROXY_ADDRESSES: '',
+    });
+    expect(result.error).toBeUndefined();
+  });
+
+  it('rejects malformed trusted proxy addresses', () => {
+    const result = envValidationSchema.validate({
+      ...baseProductionEnvironment,
+      TRUST_PROXY_ADDRESSES: 'proxy.example.com',
+    });
+    expect(result.error).toBeDefined();
+  });
+
+  it('rejects unverified multi-proxy forwarding chains', () => {
+    const result = envValidationSchema.validate({
+      ...baseProductionEnvironment,
+      TRUST_PROXY_HOPS: 2,
     });
     expect(result.error).toBeDefined();
   });

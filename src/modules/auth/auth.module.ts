@@ -5,6 +5,7 @@ import type { AppConfiguration } from '../../config/app.config';
 import { AccessTokenGuard } from './access-token.guard';
 import { AccessTokenVerifierService } from './access-token-verifier.service';
 import { AuthIntentGuard } from './auth-intent.guard';
+import { AuthSessionMaintenanceService } from './auth-session-maintenance.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
@@ -18,7 +19,13 @@ import { AuthService } from './auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AccessTokenGuard, AccessTokenVerifierService, AuthIntentGuard],
+  providers: [
+    AuthService,
+    AccessTokenGuard,
+    AccessTokenVerifierService,
+    AuthIntentGuard,
+    AuthSessionMaintenanceService,
+  ],
   exports: [AccessTokenGuard, AccessTokenVerifierService],
 })
 export class AuthModule {}
