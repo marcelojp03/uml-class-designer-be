@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import request = require('supertest');
@@ -229,6 +229,76 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
       await api().post('/auth/refresh').set('Cookie', nextCookie).set(authIntent).expect(401);
     });
 
+    it('keeps versioned refresh replay detection bounded across repeated rotations', async () => {
+      const context = await register('bounded.rotation@example.com', 'Bounded Rotation');
+      const staleCookie = context.refreshCookie;
+      const sessionId = staleCookie.split('=', 2)[1]!.split('.', 1)[0]!;
+      let currentCookie = staleCookie;
+
+      for (let rotation = 0; rotation < 3; rotation += 1) {
+        const response = await api()
+          .post('/auth/refresh')
+          .set('Cookie', currentCookie)
+          .set(authIntent)
+          .expect(200);
+        currentCookie = extractRefreshCookie(response);
+      }
+
+      expect(await prisma.consumedRefreshToken.count({ where: { sessionId } })).toBe(0);
+      await api().post('/auth/refresh').set('Cookie', staleCookie).set(authIntent).expect(401);
+      expect(
+        await prisma.authSession.findUniqueOrThrow({
+          where: { id: sessionId },
+          select: { revokedAt: true },
+        }),
+      ).toEqual({ revokedAt: expect.any(Date) });
+    });
+
+    it('rejects tampered versioned refresh tokens without revoking the active session', async () => {
+      const context = await register('tampered.rotation@example.com', 'Tampered Rotation');
+      const [cookieName, refreshToken] = context.refreshCookie.split('=', 2);
+      const [sessionId, sequence, signature] = refreshToken!.split('.');
+      const replacement = signature!.endsWith('A') ? 'B' : 'A';
+      const tamperedCookie = `${cookieName}=${sessionId}.${sequence}.${signature!.slice(0, -1)}${replacement}`;
+
+      await api().post('/auth/refresh').set('Cookie', tamperedCookie).set(authIntent).expect(401);
+      await api().get('/auth/me').set(bearer(context)).expect(200);
+      expect(
+        await prisma.authSession.findUniqueOrThrow({
+          where: { id: sessionId },
+          select: { revokedAt: true },
+        }),
+      ).toEqual({ revokedAt: null });
+    });
+
+    it('rotates legacy refresh tokens once before retiring their consumed-token history', async () => {
+      const context = await register('legacy.rotation@example.com', 'Legacy Rotation');
+      const sessionId = randomUUID();
+      const legacyToken = `${sessionId}.${randomBytes(32).toString('base64url')}`;
+      await prisma.authSession.create({
+        data: {
+          id: sessionId,
+          userId: context.id,
+          tokenHash: createHash('sha256').update(legacyToken, 'utf8').digest('hex'),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      });
+
+      const response = await api()
+        .post('/auth/refresh')
+        .set('Cookie', `uml_refresh_test=${legacyToken}`)
+        .set(authIntent)
+        .expect(200);
+      expect(extractRefreshCookie(response).split('=', 2)[1]!.split('.')).toHaveLength(3);
+      expect(await prisma.consumedRefreshToken.count({ where: { sessionId } })).toBe(1);
+      await api()
+        .post('/auth/refresh')
+        .set('Cookie', `uml_refresh_test=${legacyToken}`)
+        .set(authIntent)
+        .expect(401);
+      expect(await prisma.consumedRefreshToken.count({ where: { sessionId } })).toBe(0);
+    });
+
     it('handles concurrent refresh reuse without a server error and revokes the session', async () => {
       const context = await register('concurrent.rotation@example.com', 'Concurrent Rotation');
       const responses = await Promise.all([
@@ -267,6 +337,27 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
         .set('Cookie', context.refreshCookie)
         .set(authIntent)
         .expect(401);
+    });
+
+    it('revokes a session when logout races a prior versioned refresh token', async () => {
+      const context = await register('stale.logout@example.com', 'Stale Logout');
+      const rotated = await api()
+        .post('/auth/refresh')
+        .set('Cookie', context.refreshCookie)
+        .set(authIntent)
+        .expect(200);
+      const nextCookie = extractRefreshCookie(rotated);
+
+      await api()
+        .post('/auth/logout')
+        .set('Cookie', context.refreshCookie)
+        .set(authIntent)
+        .expect(204);
+      await api()
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${(rotated.body as AuthBody).accessToken}`)
+        .expect(401);
+      await api().post('/auth/refresh').set('Cookie', nextCookie).set(authIntent).expect(401);
     });
 
     it('rejects expired refresh sessions', async () => {
