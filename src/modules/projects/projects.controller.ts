@@ -51,7 +51,7 @@ export class ProjectsController {
     @CurrentUser() user: AuthenticatedPrincipal,
     @Body() input: CreateProjectDto,
   ): Promise<ProjectResponseDto> {
-    return this.projectsService.create(user.id, input);
+    return this.projectsService.create(user.id, user.sessionId, input);
   }
 
   @UseGuards(ProjectMemberGuard)
@@ -78,7 +78,7 @@ export class ProjectsController {
     @CurrentUser() user: AuthenticatedPrincipal,
     @Body() input: UpdateProjectDto,
   ): Promise<ProjectResponseDto> {
-    return this.projectsService.updateOwnerProject(projectId, user.id, input);
+    return this.projectsService.updateOwnerProject(projectId, user.id, user.sessionId, input);
   }
 
   @UseGuards(ProjectMemberGuard)
@@ -93,6 +93,6 @@ export class ProjectsController {
     @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
     @CurrentUser() user: AuthenticatedPrincipal,
   ): Promise<void> {
-    return this.projectsService.deleteOwnerProject(projectId, user.id);
+    return this.projectsService.deleteOwnerProject(projectId, user.id, user.sessionId);
   }
 }

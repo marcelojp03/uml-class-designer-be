@@ -8,12 +8,36 @@ interface RateWindow {
 @Injectable()
 export class CollaborationRateLimiterService implements OnApplicationShutdown {
   private readonly commandWindows = new Map<string, RateWindow>();
+  private readonly controlEventWindows = new Map<string, RateWindow>();
 
   allowCommand(socketId: string, limit: number, windowMs: number): boolean {
+    return this.allow(this.commandWindows, socketId, limit, windowMs);
+  }
+
+  allowControlEvent(socketId: string, limit: number, windowMs: number): boolean {
+    return this.allow(this.controlEventWindows, socketId, limit, windowMs);
+  }
+
+  releaseSocket(socketId: string): void {
+    this.commandWindows.delete(socketId);
+    this.controlEventWindows.delete(socketId);
+  }
+
+  onApplicationShutdown(): void {
+    this.commandWindows.clear();
+    this.controlEventWindows.clear();
+  }
+
+  private allow(
+    windows: Map<string, RateWindow>,
+    socketId: string,
+    limit: number,
+    windowMs: number,
+  ): boolean {
     const now = Date.now();
-    const current = this.commandWindows.get(socketId);
+    const current = windows.get(socketId);
     if (!current || now - current.startedAt >= windowMs) {
-      this.commandWindows.set(socketId, { startedAt: now, count: 1 });
+      windows.set(socketId, { startedAt: now, count: 1 });
       return true;
     }
     if (current.count >= limit) {
@@ -21,13 +45,5 @@ export class CollaborationRateLimiterService implements OnApplicationShutdown {
     }
     current.count += 1;
     return true;
-  }
-
-  releaseSocket(socketId: string): void {
-    this.commandWindows.delete(socketId);
-  }
-
-  onApplicationShutdown(): void {
-    this.commandWindows.clear();
   }
 }

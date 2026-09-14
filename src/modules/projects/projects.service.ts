@@ -4,15 +4,22 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, ProjectRole } from '@prisma/client';
+import { AccessTokenVerifierService } from '../auth/access-token-verifier.service';
 import { PrismaService } from '../database/prisma.service';
+import { ProjectCollaborationEventBus } from './project-collaboration-event-bus.service';
 import type { AddProjectMemberDto, CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
 import type { ProjectMemberResponseDto, ProjectResponseDto } from './dto/project-response.dto';
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly collaborationEvents: ProjectCollaborationEventBus,
+    private readonly accessTokenVerifier: AccessTokenVerifierService,
+  ) {}
 
   async listForUser(userId: string): Promise<ProjectResponseDto[]> {
     const projects = await this.prisma.project.findMany({
@@ -44,9 +51,14 @@ export class ProjectsService {
     });
   }
 
-  async create(userId: string, input: CreateProjectDto): Promise<ProjectResponseDto> {
-    const project = await this.prisma.$transaction((transaction) =>
-      transaction.project.create({
+  async create(
+    userId: string,
+    sessionId: string,
+    input: CreateProjectDto,
+  ): Promise<ProjectResponseDto> {
+    const project = await this.prisma.$transaction(async (transaction) => {
+      await this.lockMutationSession(transaction, userId, sessionId);
+      return transaction.project.create({
         data: {
           name: input.name,
           description: this.optionalDescription(input.description),
@@ -54,8 +66,8 @@ export class ProjectsService {
           members: { create: { userId, role: ProjectRole.OWNER } },
         },
         select: { id: true, name: true, description: true, createdAt: true, updatedAt: true },
-      }),
-    );
+      });
+    });
 
     return { ...project, role: ProjectRole.OWNER };
   }
@@ -89,23 +101,27 @@ export class ProjectsService {
   async updateOwnerProject(
     projectId: string,
     userId: string,
+    sessionId: string,
     input: UpdateProjectDto,
   ): Promise<ProjectResponseDto> {
     if (input.name === undefined && input.description === undefined) {
       throw new BadRequestException('At least one project field must be provided.');
     }
 
-    const updated = await this.prisma.project.updateMany({
-      where: {
-        id: projectId,
-        members: { some: { userId, role: ProjectRole.OWNER } },
-      },
-      data: {
-        ...(input.name === undefined ? {} : { name: input.name }),
-        ...(input.description === undefined
-          ? {}
-          : { description: this.optionalDescription(input.description) }),
-      },
+    const updated = await this.prisma.$transaction(async (transaction) => {
+      await this.lockMutationSession(transaction, userId, sessionId);
+      return transaction.project.updateMany({
+        where: {
+          id: projectId,
+          members: { some: { userId, role: ProjectRole.OWNER } },
+        },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.description === undefined
+            ? {}
+            : { description: this.optionalDescription(input.description) }),
+        },
+      });
     });
     if (updated.count !== 1) {
       throw new NotFoundException('Project not found.');
@@ -113,18 +129,29 @@ export class ProjectsService {
     return this.getForUser(projectId, userId);
   }
 
-  async deleteOwnerProject(projectId: string, userId: string): Promise<void> {
-    const deleted = await this.prisma.$transaction((transaction) =>
-      transaction.project.deleteMany({
+  async deleteOwnerProject(projectId: string, userId: string, sessionId: string): Promise<void> {
+    const documentIds = await this.prisma.$transaction(async (transaction) => {
+      await this.lockMutationSession(transaction, userId, sessionId);
+      if (!(await this.lockProject(transaction, projectId, 'update'))) {
+        return null;
+      }
+      await this.assertOwner(projectId, userId, transaction);
+      const documents = await transaction.umlDocument.findMany({
+        where: { projectId },
+        select: { id: true },
+      });
+      const deleted = await transaction.project.deleteMany({
         where: {
           id: projectId,
           members: { some: { userId, role: ProjectRole.OWNER } },
         },
-      }),
-    );
-    if (deleted.count !== 1) {
+      });
+      return deleted.count === 1 ? documents.map((document) => document.id) : null;
+    });
+    if (!documentIds) {
       throw new NotFoundException('Project not found.');
     }
+    this.collaborationEvents.publish({ type: 'project-deleted', projectId, documentIds });
   }
 
   async listMembers(projectId: string, ownerId: string): Promise<ProjectMemberResponseDto[]> {
@@ -151,10 +178,12 @@ export class ProjectsService {
   async addEditor(
     projectId: string,
     ownerId: string,
+    sessionId: string,
     input: AddProjectMemberDto,
   ): Promise<ProjectMemberResponseDto> {
     try {
       const member = await this.prisma.$transaction(async (transaction) => {
+        await this.lockMutationSession(transaction, ownerId, sessionId);
         await this.assertOwner(projectId, ownerId, transaction);
         const user = await transaction.user.findFirst({
           where: { id: input.userId, email: input.email.trim().toLowerCase() },
@@ -171,13 +200,19 @@ export class ProjectsService {
         return { ...created, user };
       });
 
-      return {
+      const response = {
         userId: member.userId,
         email: member.user.email,
         displayName: member.user.displayName,
         role: member.role,
         createdAt: member.createdAt,
       };
+      this.collaborationEvents.publish({
+        type: 'member-granted',
+        projectId,
+        userId: member.userId,
+      });
+      return response;
     } catch (error: unknown) {
       if (this.isUniqueConstraintError(error)) {
         throw new ConflictException('User is already a project member.');
@@ -186,23 +221,35 @@ export class ProjectsService {
     }
   }
 
-  async removeEditor(projectId: string, ownerId: string, userId: string): Promise<void> {
-    await this.prisma.$transaction(async (transaction) => {
+  async removeEditor(
+    projectId: string,
+    ownerId: string,
+    sessionId: string,
+    userId: string,
+  ): Promise<void> {
+    const documentIds = await this.prisma.$transaction(async (transaction) => {
+      await this.lockMutationSession(transaction, ownerId, sessionId);
+      if (!(await this.lockProject(transaction, projectId, 'update'))) {
+        throw new NotFoundException('Project not found.');
+      }
       await this.assertOwner(projectId, ownerId, transaction);
-      const member = await transaction.projectMember.findUnique({
-        where: { projectId_userId: { projectId, userId } },
-        select: { role: true },
-      });
+      const member = await this.lockProjectMember(transaction, projectId, userId);
       if (!member) {
         throw new NotFoundException('Project member not found.');
       }
       if (member.role === ProjectRole.OWNER) {
         throw new ForbiddenException('The project owner cannot be removed.');
       }
+      const documents = await transaction.umlDocument.findMany({
+        where: { projectId },
+        select: { id: true },
+      });
       await transaction.projectMember.delete({
         where: { projectId_userId: { projectId, userId } },
       });
+      return documents.map((document) => document.id);
     });
+    this.collaborationEvents.publish({ type: 'member-removed', projectId, userId, documentIds });
   }
 
   private async assertOwner(
@@ -219,6 +266,54 @@ export class ProjectsService {
     }
     if (membership.role !== ProjectRole.OWNER) {
       throw new ForbiddenException('Insufficient project permissions.');
+    }
+  }
+
+  private async lockProject(
+    transaction: Prisma.TransactionClient,
+    projectId: string,
+    lock: 'key-share' | 'update',
+  ): Promise<boolean> {
+    const query =
+      lock === 'update'
+        ? Prisma.sql`
+            SELECT "id"
+            FROM "Project"
+            WHERE "id" = CAST(${projectId} AS UUID)
+            FOR UPDATE
+          `
+        : Prisma.sql`
+            SELECT "id"
+            FROM "Project"
+            WHERE "id" = CAST(${projectId} AS UUID)
+            FOR KEY SHARE
+          `;
+    const projects = await transaction.$queryRaw<Array<{ id: string }>>(query);
+    return projects.length === 1;
+  }
+
+  private async lockProjectMember(
+    transaction: Prisma.TransactionClient,
+    projectId: string,
+    userId: string,
+  ): Promise<{ role: ProjectRole } | null> {
+    const members = await transaction.$queryRaw<Array<{ role: ProjectRole }>>(Prisma.sql`
+      SELECT "role"
+      FROM "ProjectMember"
+      WHERE "projectId" = CAST(${projectId} AS UUID)
+        AND "userId" = CAST(${userId} AS UUID)
+      FOR UPDATE
+    `);
+    return members[0] ?? null;
+  }
+
+  private async lockMutationSession(
+    transaction: Prisma.TransactionClient,
+    userId: string,
+    sessionId: string,
+  ): Promise<void> {
+    if (!(await this.accessTokenVerifier.lockActiveSession(transaction, userId, sessionId))) {
+      throw new UnauthorizedException('Authentication is required.');
     }
   }
 

@@ -60,7 +60,7 @@ export class ProjectMembersController {
     @CurrentUser() owner: AuthenticatedPrincipal,
     @Body() input: AddProjectMemberDto,
   ): Promise<ProjectMemberResponseDto> {
-    return this.projectsService.addEditor(projectId, owner.id, input);
+    return this.projectsService.addEditor(projectId, owner.id, owner.sessionId, input);
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -74,6 +74,6 @@ export class ProjectMembersController {
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @CurrentUser() owner: AuthenticatedPrincipal,
   ): Promise<void> {
-    return this.projectsService.removeEditor(projectId, owner.id, userId);
+    return this.projectsService.removeEditor(projectId, owner.id, owner.sessionId, userId);
   }
 }
