@@ -12,7 +12,6 @@ import type {
   DocumentCommandPayload,
   UmlCommand,
 } from './collaboration.types';
-import { DocumentMutationQueueService } from './document-mutation-queue.service';
 import { UmlCommandExecutionError, UmlCommandExecutor } from './uml-command.executor';
 
 const COLLABORATION_ROLES = [ProjectRole.OWNER, ProjectRole.EDITOR];
@@ -35,6 +34,7 @@ interface ExistingOperation {
   commandFingerprint: string;
   resultingRevision: number;
   committedAt: Date;
+  broadcastedAt: Date | null;
 }
 
 export interface ProcessedDocumentCommand {
@@ -45,6 +45,7 @@ export interface ProcessedDocumentCommand {
   committedAt: string;
   command: UmlCommand;
   idempotent: boolean;
+  requiresBroadcast: boolean;
   activeElementIds: string[];
 }
 
@@ -65,7 +66,6 @@ export class DocumentCommandService {
     private readonly accessTokenVerifier: AccessTokenVerifierService,
     private readonly canonicalValidator: CanonicalModelValidator,
     private readonly commandExecutor: UmlCommandExecutor,
-    private readonly documentQueue: DocumentMutationQueueService,
     private readonly lockStore: CollaborationLockStore,
   ) {}
 
@@ -80,6 +80,14 @@ export class DocumentCommandService {
           members: { some: { userId, role: { in: COLLABORATION_ROLES } } },
         },
       },
+      select: { id: true, projectId: true, revision: true, canonicalModel: true },
+    });
+    return document ? this.toAuthorizedDocument(document) : null;
+  }
+
+  async getCurrentDocument(documentId: string): Promise<AuthorizedDocument | null> {
+    const document = await this.prisma.umlDocument.findUnique({
+      where: { id: documentId },
       select: { id: true, projectId: true, revision: true, canonicalModel: true },
     });
     return document ? this.toAuthorizedDocument(document) : null;
@@ -136,21 +144,19 @@ export class DocumentCommandService {
     input: DocumentCommandPayload,
   ): Promise<ProcessedDocumentCommand> {
     const fingerprint = this.commandFingerprint(input.baseRevision, input.command);
-    return this.documentQueue.run(input.documentId, async () => {
-      try {
-        return await this.prisma.$transaction((transaction) =>
-          this.processInTransaction(transaction, identity, input, fingerprint),
-        );
-      } catch (error: unknown) {
-        if (this.isKnownUniqueConstraint(error)) {
-          const duplicate = await this.findExistingForActor(identity, input, fingerprint);
-          if (duplicate) {
-            return duplicate;
-          }
+    try {
+      return await this.prisma.$transaction((transaction) =>
+        this.processInTransaction(transaction, identity, input, fingerprint),
+      );
+    } catch (error: unknown) {
+      if (this.isKnownUniqueConstraint(error)) {
+        const duplicate = await this.findExistingForActor(identity, input, fingerprint);
+        if (duplicate) {
+          return duplicate;
         }
-        throw error;
       }
-    });
+      throw error;
+    }
   }
 
   private async processInTransaction(
@@ -159,33 +165,7 @@ export class DocumentCommandService {
     input: DocumentCommandPayload,
     fingerprint: string,
   ): Promise<ProcessedDocumentCommand> {
-    const session = await transaction.authSession.findFirst({
-      where: {
-        id: identity.sessionId,
-        userId: identity.userId,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      select: { id: true },
-    });
-    if (!session) {
-      throw new CollaborationOperationError('SESSION_REVOKED');
-    }
-
-    const document = await transaction.umlDocument.findFirst({
-      where: {
-        id: input.documentId,
-        project: {
-          members: {
-            some: { userId: identity.userId, role: { in: COLLABORATION_ROLES } },
-          },
-        },
-      },
-      select: { id: true, projectId: true, revision: true, canonicalModel: true },
-    });
-    if (!document) {
-      throw new CollaborationOperationError('NOT_FOUND');
-    }
+    const document = await this.lockCommandAuthorization(transaction, identity, input.documentId);
 
     const existing = await transaction.documentOperation.findUnique({
       where: {
@@ -199,6 +179,7 @@ export class DocumentCommandService {
         commandFingerprint: true,
         resultingRevision: true,
         committedAt: true,
+        broadcastedAt: true,
       },
     });
     if (existing) {
@@ -273,6 +254,7 @@ export class DocumentCommandService {
           commandFingerprint: true,
           resultingRevision: true,
           committedAt: true,
+          broadcastedAt: true,
         },
       });
       if (duplicate) {
@@ -321,8 +303,68 @@ export class DocumentCommandService {
       committedAt: committedAt.toISOString(),
       command: input.command,
       idempotent: false,
+      requiresBroadcast: true,
       activeElementIds: nextModel.diagram.elements.map((element) => element.id),
     };
+  }
+
+  private async lockCommandAuthorization(
+    transaction: Prisma.TransactionClient,
+    identity: CollaborationIdentity,
+    documentId: string,
+  ): Promise<{
+    id: string;
+    projectId: string;
+    revision: number;
+    canonicalModel: Prisma.JsonValue;
+  }> {
+    if (
+      !(await this.accessTokenVerifier.lockActiveSession(
+        transaction,
+        identity.userId,
+        identity.sessionId,
+      ))
+    ) {
+      throw new CollaborationOperationError('SESSION_REVOKED');
+    }
+
+    const candidate = await transaction.umlDocument.findUnique({
+      where: { id: documentId },
+      select: { projectId: true },
+    });
+    if (!candidate) {
+      throw new CollaborationOperationError('NOT_FOUND');
+    }
+
+    const projects = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id"
+      FROM "Project"
+      WHERE "id" = CAST(${candidate.projectId} AS UUID)
+      FOR KEY SHARE
+    `);
+    if (projects.length !== 1) {
+      throw new CollaborationOperationError('NOT_FOUND');
+    }
+
+    const memberships = await transaction.$queryRaw<Array<{ role: ProjectRole }>>(Prisma.sql`
+      SELECT "role"
+      FROM "ProjectMember"
+      WHERE "projectId" = CAST(${candidate.projectId} AS UUID)
+        AND "userId" = CAST(${identity.userId} AS UUID)
+      FOR UPDATE
+    `);
+    if (memberships.length !== 1 || !COLLABORATION_ROLES.includes(memberships[0]!.role)) {
+      throw new CollaborationOperationError('NOT_FOUND');
+    }
+
+    const document = await transaction.umlDocument.findFirst({
+      where: { id: documentId, projectId: candidate.projectId },
+      select: { id: true, projectId: true, revision: true, canonicalModel: true },
+    });
+    if (!document) {
+      throw new CollaborationOperationError('NOT_FOUND');
+    }
+    return document;
   }
 
   private async findExistingForActor(
@@ -350,6 +392,7 @@ export class DocumentCommandService {
         commandFingerprint: true,
         resultingRevision: true,
         committedAt: true,
+        broadcastedAt: true,
       },
     });
     return operation ? this.resolveExisting(operation, identity, input, fingerprint) : null;
@@ -372,8 +415,41 @@ export class DocumentCommandService {
       committedAt: operation.committedAt.toISOString(),
       command: input.command,
       idempotent: true,
+      requiresBroadcast: operation.broadcastedAt === null,
       activeElementIds: [],
     };
+  }
+
+  async markBroadcastDelivered(documentId: string, operationId: string): Promise<void> {
+    await this.prisma.documentOperation.updateMany({
+      where: { documentId, operationId, broadcastedAt: null },
+      data: { broadcastedAt: new Date() },
+    });
+  }
+
+  async listDocumentsAwaitingDelivery(limit: number): Promise<string[]> {
+    const operations = await this.prisma.documentOperation.findMany({
+      where: { broadcastedAt: null },
+      select: { documentId: true },
+      orderBy: [{ committedAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return [...new Set(operations.map((operation) => operation.documentId))];
+  }
+
+  async hasPendingBroadcasts(documentId: string): Promise<boolean> {
+    const operation = await this.prisma.documentOperation.findFirst({
+      where: { documentId, broadcastedAt: null },
+      select: { id: true },
+    });
+    return operation !== null;
+  }
+
+  async markPendingBroadcastsDelivered(documentId: string): Promise<void> {
+    await this.prisma.documentOperation.updateMany({
+      where: { documentId, broadcastedAt: null },
+      data: { broadcastedAt: new Date() },
+    });
   }
 
   private toAuthorizedDocument(document: {

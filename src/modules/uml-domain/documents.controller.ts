@@ -68,7 +68,7 @@ export class DocumentsController {
     @CurrentUser() user: AuthenticatedPrincipal,
     @Body() input: CreateDocumentDto,
   ): Promise<DocumentResponseDto> {
-    return this.documentsService.create(projectId, user.id, input);
+    return this.documentsService.create(projectId, user.id, user.sessionId, input);
   }
 
   @Get(':documentId')
@@ -103,7 +103,7 @@ export class DocumentsController {
     @CurrentUser() user: AuthenticatedPrincipal,
     @Body() input: UpdateDocumentDto,
   ): Promise<DocumentResponseDto> {
-    return this.documentsService.update(projectId, documentId, user.id, input);
+    return this.documentsService.update(projectId, documentId, user.id, user.sessionId, input);
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -116,6 +116,6 @@ export class DocumentsController {
     @Param('documentId', new ParseUUIDPipe({ version: '4' })) documentId: string,
     @CurrentUser() user: AuthenticatedPrincipal,
   ): Promise<void> {
-    return this.documentsService.delete(projectId, documentId, user.id);
+    return this.documentsService.delete(projectId, documentId, user.id, user.sessionId);
   }
 }
