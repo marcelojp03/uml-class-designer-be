@@ -21,14 +21,15 @@ pnpm dev
 
 La API escucha por defecto en `http://127.0.0.1:3000`, expone `GET /health`, Swagger en `/docs` y OpenAPI JSON en `/docs/openapi.json`.
 
-Las variables críticas `NODE_ENV`, `DATABASE_URL` y `AUTH_JWT_SECRET` son obligatorias. En producción también se exige cookie `Secure` y `TRUST_PROXY_HOPS >= 1`; el proceso escucha solo en loopback y debe publicarse mediante un proxy de confianza.
+Las variables críticas `NODE_ENV`, `DATABASE_URL` y `AUTH_JWT_SECRET` son obligatorias. En producción también se exigen cookie `Secure`, `TRUST_PROXY_HOPS=1` y una lista explícita de `TRUST_PROXY_ADDRESSES`; el proceso escucha solo en loopback y debe publicarse mediante un único proxy inmediato de confianza. Cadenas X-Forwarded-For con más de una dirección no se usan para rate limiting del handshake Socket.IO.
 
 ## Identidad y sesiones
 
 - Contraseñas con Argon2id; hashes y tokens nunca forman parte de las respuestas.
 - JWT de acceso breve validado contra una sesión PostgreSQL activa.
-- Refresh opaco en cookie `HttpOnly`, rotado en cada uso y almacenado únicamente como SHA-256.
-- Todo refresh consumido queda registrado: su reutilización revoca la sesión completa, incluso bajo solicitudes concurrentes.
+- Refresh en cookie `HttpOnly`, rotado en cada uso y almacenado únicamente como SHA-256. El formato vigente incluye `sessionId`, secuencia y HMAC-SHA256; no contiene el secreto del refresh.
+- La secuencia se actualiza atómicamente y un refresh anterior revoca la sesión completa, incluso bajo solicitudes concurrentes. Un token opaco legacy se acepta solo una vez durante la transición y conserva historial de replay.
+- El mantenedor de sesiones inicia al arrancar y drena por lotes sesiones expiradas, su historial legacy y operaciones asociadas.
 - `POST /auth/register`, `login`, `refresh` y `logout` requieren `X-Auth-Intent: 1`; solo se aceptan orígenes CORS explícitos y cuerpos JSON.
 
 ## Proyectos y documentos
@@ -37,7 +38,7 @@ Las variables críticas `NODE_ENV`, `DATABASE_URL` y `AUTH_JWT_SECRET` son oblig
 
 El alta de un editor exige correo normalizado y el UUID de cuenta compartido por el propio usuario. No se implementan invitaciones ni verificación de correo en este incremento.
 
-Cada documento conserva el modelo canónico `0.1.0`, revisión actual y snapshots inmutables. `PUT` exige `expectedRevision`, ejecuta compare-and-swap atómico y devuelve 409 sin sobrescribir cuando existe conflicto. Los IDs canónicos se normalizan de forma determinista desde los UUID persistidos; React Flow nunca se almacena como fuente de verdad.
+Cada documento conserva el modelo canónico `0.1.0`, revisión actual y snapshots inmutables. `PUT` exige `expectedRevision`, ejecuta compare-and-swap atómico y devuelve 409 sin sobrescribir cuando existe conflicto. Las mutaciones REST bloquean la sesión PostgreSQL activa y la membresía dentro de su transacción, por lo que un logout o retiro concurrente gana antes de que la escritura pueda confirmar. Los IDs canónicos se normalizan de forma determinista desde los UUID persistidos; React Flow nunca se almacena como fuente de verdad. Un `PUT` activo emite `document:resync-required` a clientes autorizados y un `DELETE` los evacúa con `document:deleted`.
 
 ## Contrato canónico
 
@@ -49,9 +50,52 @@ pnpm openapi:generate
 pnpm openapi:check
 ```
 
+## Colaboración en tiempo real
+
+`contracts/collaboration-protocol.schema.json` define el protocolo Socket.IO `1.0.0`. El cliente debe conectarse con un access token vigente únicamente en `auth.token`; tokens en query string, cookies de refresh y snapshots completos no son parte del protocolo. El handshake exige un encabezado `Origin` presente en `CORS_ORIGINS`.
+
+- `document:join` autoriza `OWNER`/`EDITOR`, deriva el room interno `document:<documentId>` y devuelve snapshot solo en el primer join o cuando `knownRevision` está desactualizada. Los joins del mismo socket se serializan para respetar `COLLABORATION_MAX_DOCUMENTS_PER_SOCKET`, incluso si solicitan documentos distintos en paralelo.
+- `document:command` acepta uno de los 16 comandos canónicos tipados, exige `operationId` UUID y `baseRevision`, bloquea sesión y membresía dentro de la transacción CAS, persiste `DocumentOperation` y `DocumentRevision`, y emite `document:operation` solamente después del commit. Los locks se validan sobre todos los clasificadores modificados indirectamente, incluidos los que contienen referencias de tipo actualizadas por un renombre.
+- Reintentar el mismo `operationId`, actor y payload devuelve el mismo ACK sin una segunda revisión ni broadcast. Reutilizarlo con otro actor o payload devuelve `OPERATION_ID_REUSED`.
+- `presence:update`, `lock:acquire`, `lock:renew` y `lock:release` trabajan solo después del join. Locks incluyen lease UUID, vencen por TTL y se liberan al salir o desconectarse el socket.
+- Antes de cada broadcast se vuelve a comprobar sesión y membresía en PostgreSQL; una sesión revocada se desconecta y una membresía retirada abandona el room antes de recibir el evento.
+- Si una operación confirmada no llega a difundirse, un recuperador local la detecta mediante `broadcastedAt`, emite `document:resync-required` para la revisión actual y confirma la entrega pendiente.
+- Antes de JWT/Prisma, el adapter limita intentos globales, por cliente y handshakes pendientes. Un deadline único cierra con descarte transports polling que no envían `CONNECT`; la consulta de sesión conserva su cupo hasta completar o agotar ese mismo deadline.
+
+Presencia, locks, cola por documento y rooms son locales al proceso. La cola reserva una plaza crítica por documento para evacuaciones, resync y recuperación, y coalesce esas tareas para mantener su límite. Los sockets están acotados globalmente y por sesión. Esta versión funciona en una única réplica; una ampliación horizontal requiere adaptador Socket.IO, presencia/locks y cola compartidos, por ejemplo Redis, además de un outbox transaccional.
+
+Variables de colaboración:
+
+```text
+COLLABORATION_SOCKET_MAX_PAYLOAD_BYTES=65536
+COLLABORATION_PING_TIMEOUT_MS=20000
+COLLABORATION_PING_INTERVAL_MS=25000
+COLLABORATION_COMMAND_LIMIT=30
+COLLABORATION_COMMAND_WINDOW_MS=10000
+COLLABORATION_CONTROL_EVENT_LIMIT=60
+COLLABORATION_CONTROL_EVENT_WINDOW_MS=10000
+COLLABORATION_PRESENCE_MIN_INTERVAL_MS=100
+COLLABORATION_LOCK_TTL_SECONDS=30
+COLLABORATION_MAX_PARTICIPANTS_PER_DOCUMENT=100
+COLLABORATION_MAX_DOCUMENTS_PER_SOCKET=20
+COLLABORATION_MAX_CONNECTED_SOCKETS=1000
+COLLABORATION_MAX_SOCKETS_PER_SESSION=5
+COLLABORATION_HANDSHAKE_LIMIT=30
+COLLABORATION_HANDSHAKE_GLOBAL_LIMIT=200
+COLLABORATION_HANDSHAKE_WINDOW_MS=10000
+COLLABORATION_HANDSHAKE_TIMEOUT_MS=10000
+COLLABORATION_MAX_PENDING_HANDSHAKES=32
+COLLABORATION_MAX_PENDING_MUTATIONS_PER_DOCUMENT=128
+COLLABORATION_OPERATION_RECOVERY_INTERVAL_MS=1000
+COLLABORATION_OPERATION_RECOVERY_BATCH_SIZE=100
+```
+
+La migración `20260908120000_add_document_operations` agrega el registro idempotente por `(documentId, operationId)`, índices de revisión y referencias a documento/actor. `20260908130000_add_document_operation_delivery` añade `broadcastedAt` y marca las operaciones históricas como ya entregadas. `20260908140000_add_document_operation_recovery_index` añade el índice parcial de operaciones aún pendientes de difusión. `20260908150000_add_auth_session_refresh_sequence` añade la secuencia de refresh. Aplique siempre `pnpm exec prisma migrate deploy`; no use `db push`.
+
 ## Verificación
 
 ```powershell
+pnpm format:check
 pnpm typecheck
 pnpm lint
 pnpm test
@@ -59,6 +103,7 @@ pnpm test:e2e
 pnpm prisma:validate
 pnpm openapi:check
 pnpm build
+pnpm smoke:production
 ```
 
 La base E2E es exclusiva y usa PostgreSQL 17 en `127.0.0.1:55434`:
@@ -70,4 +115,4 @@ pnpm db:test:status
 pnpm db:test:down
 ```
 
-Continúan fuera de alcance la integración funcional del frontend, verificación de correo, invitaciones, OAuth, recuperación de contraseña, colaboración Socket.IO, IA, importación/exportación y generación Spring Boot.
+Continúan fuera de alcance la integración funcional Socket.IO del frontend, verificación de correo, invitaciones, OAuth, recuperación de contraseña, escalado horizontal de colaboración, IA, importación/exportación y generación Spring Boot.
