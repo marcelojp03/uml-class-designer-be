@@ -363,13 +363,21 @@ export class CanonicalModelValidator {
   }
 
   private relationshipSignature(relationship: CanonicalRelationship, reversed = false): string {
-    return JSON.stringify({
-      kind: relationship.kind,
-      name: relationship.name ?? null,
-      source: reversed ? relationship.target : relationship.source,
-      target: reversed ? relationship.source : relationship.target,
-      associationClassId: relationship.associationClassId ?? null,
-    });
+    const source = reversed ? relationship.target : relationship.source;
+    const target = reversed ? relationship.source : relationship.target;
+    return JSON.stringify([
+      relationship.kind,
+      relationship.name ?? null,
+      source.elementId,
+      source.role,
+      source.multiplicity,
+      source.navigable,
+      target.elementId,
+      target.role,
+      target.multiplicity,
+      target.navigable,
+      relationship.associationClassId ?? null,
+    ]);
   }
 
   private isManyMultiplicity(value: string): boolean {

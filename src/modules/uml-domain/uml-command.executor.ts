@@ -33,7 +33,18 @@ export class UmlCommandExecutor {
       case 'classifier.create':
       case 'classifier.duplicate':
         return new Set([command.classifier.id]);
-      case 'classifier.update':
+      case 'classifier.update': {
+        const classifier = this.findClassifier(document, command.elementId);
+        const affected = new Set([command.elementId]);
+        if (classifier.name !== command.classifier.name) {
+          for (const candidate of document.diagram.elements) {
+            if (this.referencesClassifier(candidate, command.elementId)) {
+              affected.add(candidate.id);
+            }
+          }
+        }
+        return affected;
+      }
       case 'classifier.delete':
       case 'diagram.clear':
         return new Set(document.diagram.elements.map((element) => element.id));
@@ -47,10 +58,7 @@ export class UmlCommandExecutor {
       case 'operation.delete':
         return new Set([command.classifierId]);
       case 'relationship.create':
-        return new Set([
-          command.relationship.source.elementId,
-          command.relationship.target.elementId,
-        ]);
+        return this.relationshipElementIds(command.relationship);
       case 'relationship.update': {
         const existing = this.findRelationship(document, command.relationshipId);
         return this.relationshipElementIds(existing, command.relationship);
@@ -266,6 +274,17 @@ export class UmlCommandExecutor {
         }
       }
     }
+  }
+
+  private referencesClassifier(classifier: UmlClassifier, elementId: string): boolean {
+    return (
+      classifier.attributes.some((attribute) => attribute.type.elementId === elementId) ||
+      classifier.operations.some(
+        (operation) =>
+          operation.returnType.elementId === elementId ||
+          operation.parameters.some((parameter) => parameter.type.elementId === elementId),
+      )
+    );
   }
 
   private syncTypeName(reference: UmlTypeReference, elementId: string, name: string): void {

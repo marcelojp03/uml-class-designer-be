@@ -1,6 +1,7 @@
 export interface CollaborationIdentity {
   userId: string;
   sessionId: string;
+  accessTokenExpiresAt: number;
 }
 
 export interface UmlTypeReference {

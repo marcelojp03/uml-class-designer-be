@@ -24,6 +24,39 @@ describe('UmlCommandExecutor', () => {
     expect(affected).toEqual(new Set(model.diagram.elements.map((element) => element.id)));
   });
 
+  it('treats a classifier rename as affecting every classifier with an updated type reference', () => {
+    const model = fixture();
+    const order = model.diagram.elements.find((element) => element.id === 'order');
+    if (!order) {
+      throw new Error('Expected the order classifier fixture.');
+    }
+
+    const affected = new UmlCommandExecutor().affectedElementIds(model, {
+      type: 'classifier.update',
+      timestamp,
+      elementId: 'order',
+      classifier: { ...order, name: 'PurchaseOrder' },
+    });
+
+    expect(affected).toEqual(new Set(['order', 'customer', 'repository']));
+  });
+
+  it('includes an association class in the affected elements of relationship creation', () => {
+    const affected = new UmlCommandExecutor().affectedElementIds(fixture(), {
+      type: 'relationship.create',
+      timestamp,
+      relationship: {
+        id: 'rel_customer_order_line',
+        kind: 'association',
+        source: { elementId: 'customer', role: 'customer', multiplicity: '0..*', navigable: true },
+        target: { elementId: 'order', role: 'orders', multiplicity: '0..*', navigable: true },
+        associationClassId: 'order_line',
+      },
+    });
+
+    expect(affected).toEqual(new Set(['customer', 'order', 'order_line']));
+  });
+
   it('applies every editor command variant while preserving the canonical model', () => {
     const executor = new UmlCommandExecutor();
     const validator = new CanonicalModelValidator();

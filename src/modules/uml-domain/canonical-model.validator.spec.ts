@@ -60,6 +60,42 @@ describe('CanonicalModelValidator', () => {
     );
   });
 
+  it('rejects semantically duplicate relationships with differently ordered endpoint keys', () => {
+    const model = loadFixture('valid-uml-model.json');
+    const diagram = model.diagram as {
+      relationships: Array<{
+        id: string;
+        kind: string;
+        name?: string;
+        source: { elementId: string; role: string; multiplicity: string; navigable: boolean };
+        target: { elementId: string; role: string; multiplicity: string; navigable: boolean };
+      }>;
+    };
+    const original = diagram.relationships.find((relationship) => relationship.id === 'rel_orders');
+    if (!original) {
+      throw new Error('Expected the orders relationship fixture.');
+    }
+    diagram.relationships.push({
+      id: 'rel_orders_reordered',
+      kind: original.kind,
+      name: original.name,
+      source: {
+        navigable: original.source.navigable,
+        multiplicity: original.source.multiplicity,
+        role: original.source.role,
+        elementId: original.source.elementId,
+      },
+      target: {
+        navigable: original.target.navigable,
+        multiplicity: original.target.multiplicity,
+        role: original.target.role,
+        elementId: original.target.elementId,
+      },
+    });
+
+    expect(() => validator.validateAndNormalize(model, 0, new Date())).toThrow(BadRequestException);
+  });
+
   it('normalizes canonical resource IDs from persistence UUIDs', () => {
     const result = validator.validateAndNormalize(
       loadFixture('valid-uml-model.json'),
