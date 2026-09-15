@@ -59,6 +59,47 @@ interface LockAck {
   locks: Array<{ elementId: string }>;
 }
 
+interface FullParticipant {
+  userId: string;
+  socketId: string;
+  joinedAt: string;
+  lastSeen: string;
+  selection?: string[];
+  cursor?: { x: number; y: number };
+}
+
+interface FullLock {
+  documentId: string;
+  elementId: string;
+  userId: string;
+  socketId: string;
+  leaseId: string;
+  expiresAt: string;
+}
+
+interface DocumentLeaveAck {
+  ok: true;
+  documentId: string;
+}
+
+interface PresenceUpdateAck {
+  ok: true;
+  documentId: string;
+  participants: FullParticipant[];
+}
+
+interface LockLeaseAck {
+  ok: true;
+  lock: FullLock;
+  locks: FullLock[];
+}
+
+interface LockReleaseAck {
+  ok: true;
+  documentId: string;
+  locks: FullLock[];
+}
+
 interface PresenceChanged {
   documentId: string;
   participants: Array<{ userId: string; socketId: string }>;
@@ -89,6 +130,34 @@ function operationEventValidator(): ValidateFunction {
   ajv.addSchema(canonicalSchema);
   ajv.addSchema(collaborationSchema);
   return ajv.getSchema(`${collaborationSchema.$id}#/$defs/documentOperationEvent`)!;
+}
+
+function ackValidators(): Record<
+  'documentLeaveAck' | 'presenceUpdateAck' | 'lockLeaseAck' | 'lockReleaseAck' | 'failure',
+  ValidateFunction
+> {
+  const canonicalSchema = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'contracts/uml-model.schema.json'), 'utf8'),
+  ) as AnySchema;
+  const collaborationSchema = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'contracts/collaboration-protocol.schema.json'), 'utf8'),
+  ) as AnySchema & { $id: string };
+  const ajv = new Ajv2020({ allErrors: true, strict: true });
+  addFormats(ajv);
+  ajv.addSchema(canonicalSchema);
+  ajv.addSchema(collaborationSchema);
+  const validatorFor = (name: string): ValidateFunction => {
+    const validator = ajv.getSchema(`${collaborationSchema.$id}#/$defs/${name}`);
+    if (!validator) throw new Error(`El contrato no define $defs/${name}.`);
+    return validator;
+  };
+  return {
+    documentLeaveAck: validatorFor('documentLeaveAck'),
+    presenceUpdateAck: validatorFor('presenceUpdateAck'),
+    lockLeaseAck: validatorFor('lockLeaseAck'),
+    lockReleaseAck: validatorFor('lockReleaseAck'),
+    failure: validatorFor('failure'),
+  };
 }
 const validModel = JSON.parse(
   readFileSync(resolve(process.cwd(), 'contracts/fixtures/valid-uml-model.json'), 'utf8'),
@@ -926,6 +995,52 @@ describe('authenticated realtime collaboration (e2e)', () => {
         moveCommand(documentId, 0, 'person', 510, 90),
       ),
     ).resolves.toMatchObject({ ok: false, code: 'NOT_FOUND' });
+  });
+
+  it('emits leave, presence and lock ACKs matching the formal contract', async () => {
+    const { documentId } = await createDocument(owner);
+    const ownerSocket = await connect(owner.accessToken);
+    await emitAck<JoinAck>(ownerSocket, 'document:join', { documentId });
+    const validators = ackValidators();
+
+    const presence = await emitAck<PresenceUpdateAck>(ownerSocket, 'presence:update', {
+      documentId,
+      selection: ['person'],
+    });
+    expect(presence).toMatchObject({ ok: true, documentId });
+    expect(validators.presenceUpdateAck(presence)).toBe(true);
+
+    const acquired = await emitAck<LockLeaseAck>(ownerSocket, 'lock:acquire', {
+      documentId,
+      elementId: 'person',
+    });
+    expect(acquired).toMatchObject({ ok: true, lock: { elementId: 'person' } });
+    expect(validators.lockLeaseAck(acquired)).toBe(true);
+
+    const renewed = await emitAck<LockLeaseAck>(ownerSocket, 'lock:renew', {
+      documentId,
+      elementId: 'person',
+      leaseId: acquired.lock.leaseId,
+    });
+    expect(renewed).toMatchObject({ ok: true, lock: { leaseId: acquired.lock.leaseId } });
+    expect(validators.lockLeaseAck(renewed)).toBe(true);
+
+    const released = await emitAck<LockReleaseAck>(ownerSocket, 'lock:release', {
+      documentId,
+      elementId: 'person',
+      leaseId: renewed.lock.leaseId,
+    });
+    expect(released).toMatchObject({ ok: true, documentId, locks: [] });
+    expect(validators.lockReleaseAck(released)).toBe(true);
+
+    const left = await emitAck<DocumentLeaveAck>(ownerSocket, 'document:leave', { documentId });
+    expect(left).toEqual({ ok: true, documentId });
+    expect(validators.documentLeaveAck(left)).toBe(true);
+
+    const notJoined = await emitAck<FailureAck>(ownerSocket, 'document:leave', { documentId });
+    expect(notJoined).toMatchObject({ ok: false, code: 'NOT_JOINED' });
+    expect(validators.failure(notJoined)).toBe(true);
+    expect(validators.documentLeaveAck(notJoined)).toBe(false);
   });
 
   it('releases member and deleted-document fences after their eviction work completes', async () => {

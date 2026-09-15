@@ -103,6 +103,73 @@ describe('collaboration protocol contract', () => {
     expect(validateCommand(arbitraryProperty)).toBe(false);
   });
 
+  it('keeps protocol 1.0.0: additive ACK defs without wire changes', () => {
+    // Las definiciones documentLeaveAck, presenceUpdateAck, lockLeaseAck y
+    // lockReleaseAck solo formalizan respuestas que el gateway ya emitía; ningún
+    // payload del cable cambia, por eso la versión mayor/menor se conserva.
+    expect(collaborationSchema.$id.endsWith('/1.0.0')).toBe(true);
+    const defs = (collaborationSchema as unknown as { $defs?: Record<string, unknown> }).$defs;
+    for (const name of [
+      'documentLeaveAck',
+      'presenceUpdateAck',
+      'lockLeaseAck',
+      'lockReleaseAck',
+    ]) {
+      expect(defs?.[name]).toBeDefined();
+    }
+  });
+
+  it('defines leave, presence and lock ACKs with exact required keys', () => {
+    const validate = (name: string) => {
+      const validator = ajv.getSchema(`${collaborationSchema.$id}#/$defs/${name}`);
+      if (!validator) throw new Error(`El contrato no define $defs/${name}.`);
+      return validator;
+    };
+    const documentId = randomUUID();
+    const participant = {
+      userId: randomUUID(),
+      socketId: 'socket-1',
+      joinedAt: '2026-09-08T12:00:00.000Z',
+      lastSeen: '2026-09-08T12:00:00.000Z',
+    };
+    const lock = {
+      documentId,
+      elementId: 'person',
+      userId: participant.userId,
+      socketId: participant.socketId,
+      leaseId: randomUUID(),
+      expiresAt: '2026-09-08T12:00:00.000Z',
+    };
+    const leaveAck = { ok: true, documentId };
+    expect(validate('documentLeaveAck')(leaveAck)).toBe(true);
+    const presenceAck = { ok: true, documentId, participants: [participant] };
+    expect(validate('presenceUpdateAck')(presenceAck)).toBe(true);
+    const leaseAck = { ok: true, lock, locks: [lock] };
+    expect(validate('lockLeaseAck')(leaseAck)).toBe(true);
+    const releaseAck = { ok: true, documentId, locks: [lock] };
+    expect(validate('lockReleaseAck')(releaseAck)).toBe(true);
+
+    for (const [name, valid] of [
+      ['documentLeaveAck', leaveAck],
+      ['presenceUpdateAck', presenceAck],
+      ['lockLeaseAck', leaseAck],
+      ['lockReleaseAck', releaseAck],
+    ] as const) {
+      const validator = validate(name);
+      expect(validator({ ...valid, intruso: true })).toBe(false);
+      const missing = { ...valid } as Record<string, unknown>;
+      delete missing[Object.keys(valid)[1]!];
+      expect(validator(missing)).toBe(false);
+      expect(validator({ ...valid, ok: false })).toBe(false);
+    }
+  });
+
+  it('documents Failure as the wire alternative for every new ACK', () => {
+    const validateFailure = ajv.getSchema(`${collaborationSchema.$id}#/$defs/failure`)!;
+    // Respuesta de error real del gateway ante leave sin join previo.
+    expect(validateFailure({ ok: false, code: 'NOT_JOINED', message: 'x' })).toBe(true);
+  });
+
   it('keeps the transport contract independent from React Flow snapshots and JSON Patch', () => {
     const schemaText = readFileSync(
       resolve(process.cwd(), 'contracts/collaboration-protocol.schema.json'),
