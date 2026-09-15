@@ -85,6 +85,49 @@
         "committedAt": { "$ref": "#/$defs/timestamp" }
       }
     },
+    "documentLeaveAck": {
+      "description": "Éxito de document:leave. La respuesta del cable es documentLeaveAck | failure.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "documentId"],
+      "properties": {
+        "ok": { "const": true },
+        "documentId": { "$ref": "#/$defs/uuidV4" }
+      }
+    },
+    "presenceUpdateAck": {
+      "description": "Éxito de presence:update. La respuesta del cable es presenceUpdateAck | failure.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "documentId", "participants"],
+      "properties": {
+        "ok": { "const": true },
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "participants": { "type": "array", "items": { "$ref": "#/$defs/participant" } }
+      }
+    },
+    "lockLeaseAck": {
+      "description": "Éxito común de lock:acquire y lock:renew. La respuesta del cable es lockLeaseAck | failure.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "lock", "locks"],
+      "properties": {
+        "ok": { "const": true },
+        "lock": { "$ref": "#/$defs/elementLock" },
+        "locks": { "type": "array", "items": { "$ref": "#/$defs/elementLock" } }
+      }
+    },
+    "lockReleaseAck": {
+      "description": "Éxito de lock:release. La respuesta del cable es lockReleaseAck | failure.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "documentId", "locks"],
+      "properties": {
+        "ok": { "const": true },
+        "documentId": { "$ref": "#/$defs/uuidV4" },
+        "locks": { "type": "array", "items": { "$ref": "#/$defs/elementLock" } }
+      }
+    },
     "documentJoinAck": {
       "type": "object",
       "additionalProperties": false,

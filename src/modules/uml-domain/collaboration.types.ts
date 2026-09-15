@@ -238,6 +238,33 @@ export interface CommandAcceptedAck {
   committedAt: string;
 }
 
+// Respuestas exitosas ya emitidas por el gateway, formalizadas en
+// collaboration-protocol.schema.json ($defs documentLeaveAck,
+// presenceUpdateAck, lockLeaseAck, lockReleaseAck). La respuesta del cable
+// para cada evento es la forma exitosa o CollaborationFailure.
+export interface DocumentLeaveAck {
+  ok: true;
+  documentId: string;
+}
+
+export interface PresenceUpdateAck {
+  ok: true;
+  documentId: string;
+  participants: CollaborationParticipant[];
+}
+
+export interface LockLeaseAck {
+  ok: true;
+  lock: ElementLock;
+  locks: ElementLock[];
+}
+
+export interface LockReleaseAck {
+  ok: true;
+  documentId: string;
+  locks: ElementLock[];
+}
+
 export interface DocumentOperationEvent {
   operationId: string;
   documentId: string;
