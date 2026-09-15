@@ -67,6 +67,26 @@ describe('collaboration protocol contract', () => {
     ).toBe(true);
   });
 
+  it('defines document:operation without ok and rejects missing or extra properties', () => {
+    const command = commandPayload();
+    const operationEvent = {
+      operationId: command.operationId,
+      documentId: command.documentId,
+      actorId: randomUUID(),
+      baseRevision: 0,
+      revision: 1,
+      command: command.command,
+      committedAt: '2026-09-08T12:00:00.000Z',
+    };
+    expect(validateOperationEvent(operationEvent)).toBe(true);
+
+    const withoutActor = { ...operationEvent } as Record<string, unknown>;
+    delete withoutActor.actorId;
+    expect(validateOperationEvent(withoutActor)).toBe(false);
+
+    expect(validateOperationEvent({ ...operationEvent, ok: true })).toBe(false);
+  });
+
   it('rejects malformed operation identifiers, unknown commands, and arbitrary payload properties', () => {
     const malformedOperationId = commandPayload() as Record<string, unknown>;
     malformedOperationId.operationId = 'not-a-uuid';

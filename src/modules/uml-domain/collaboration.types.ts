@@ -238,8 +238,30 @@ export interface CommandAcceptedAck {
   committedAt: string;
 }
 
-export interface DocumentOperationEvent extends CommandAcceptedAck {
+export interface DocumentOperationEvent {
+  operationId: string;
+  documentId: string;
   actorId: string;
   baseRevision: number;
+  revision: number;
   command: UmlCommand;
+  committedAt: string;
 }
+
+export type CollaborationClientEvent =
+  | 'document:join'
+  | 'document:leave'
+  | 'document:command'
+  | 'presence:update'
+  | 'lock:acquire'
+  | 'lock:renew'
+  | 'lock:release';
+
+export type CollaborationServerEvent =
+  | 'document:operation'
+  | 'presence:changed'
+  | 'lock:changed'
+  | 'document:resync-required'
+  | 'document:deleted'
+  | 'document:access-revoked'
+  | 'session:revoked';

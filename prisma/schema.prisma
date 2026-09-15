@@ -128,8 +128,8 @@ model DocumentOperation {
   resultingRevision  Int
   command            Json
   commandFingerprint String      @db.Char(64)
-  committedAt        DateTime    @default(now())
-  broadcastedAt      DateTime?
+  committedAt        DateTime    @default(now()) @db.Timestamptz(3)
+  broadcastedAt      DateTime?   @db.Timestamptz(3)
 
   @@unique([documentId, operationId])
   @@index([documentId, resultingRevision])
