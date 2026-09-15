@@ -9,6 +9,7 @@ import request = require('supertest');
 import { createConfiguredApp } from '../src/bootstrap';
 import type { AppConfiguration } from '../src/config/app.config';
 import { PrismaService } from '../src/modules/database/prisma.service';
+import { AccessTokenVerifierService } from '../src/modules/auth/access-token-verifier.service';
 import { CollaborationGateway } from '../src/modules/uml-domain/collaboration.gateway';
 import { CollaborationPresenceStore } from '../src/modules/uml-domain/collaboration-presence.store';
 import { DocumentMutationQueueService } from '../src/modules/uml-domain/document-mutation-queue.service';
@@ -287,6 +288,22 @@ describe('authenticated realtime collaboration (e2e)', () => {
       .set('X-Forwarded-For', nextClientAddress())
       .send({ email, displayName, password: 'correct horse battery staple' })
       .expect(201);
+    const body = response.body as AuthBody;
+    return {
+      id: body.user.id,
+      email: body.user.email,
+      accessToken: body.accessToken,
+      refreshCookie: refreshCookie(response),
+    };
+  }
+
+  async function login(email: string): Promise<AuthContext> {
+    const response = await api()
+      .post('/auth/login')
+      .set(authIntent)
+      .set('X-Forwarded-For', nextClientAddress())
+      .send({ email, password: 'correct horse battery staple' })
+      .expect(200);
     const body = response.body as AuthBody;
     return {
       id: body.user.id,
@@ -1232,5 +1249,116 @@ describe('authenticated realtime collaboration (e2e)', () => {
       resyncRequired: true,
       canonicalModel: expect.objectContaining({ schemaVersion: '0.1.0' }),
     });
+  });
+
+  it('isolates element locks per socket, even within the same user and session', async () => {
+    const { projectId, documentId } = await createDocument(owner, true);
+    const tabA1 = await connect(owner.accessToken);
+    const tabA2 = await connect(owner.accessToken);
+    await emitAck<JoinAck>(tabA1, 'document:join', { documentId });
+    await emitAck<JoinAck>(tabA2, 'document:join', { documentId });
+
+    const lock = await emitAck<LockAck>(tabA1, 'lock:acquire', {
+      documentId,
+      elementId: 'person',
+    });
+    expect(lock).toMatchObject({ ok: true, lock: { elementId: 'person' } });
+
+    await expect(
+      emitAck<FailureAck>(tabA2, 'document:command', moveCommand(documentId, 0, 'person', 640, 96)),
+    ).resolves.toMatchObject({ ok: false, code: 'ELEMENT_LOCKED' });
+    await expect(
+      emitAck<FailureAck>(tabA2, 'lock:renew', {
+        documentId,
+        elementId: 'person',
+        leaseId: lock.lock.leaseId,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    await expect(
+      emitAck<FailureAck>(tabA2, 'lock:release', {
+        documentId,
+        elementId: 'person',
+        leaseId: lock.lock.leaseId,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'FORBIDDEN' });
+
+    const accepted = await emitAck<CommandAck>(
+      tabA1,
+      'document:command',
+      moveCommand(documentId, 0, 'person', 512, 72),
+    );
+    expect(accepted).toMatchObject({ ok: true, revision: 1 });
+
+    const ownerSecondSession = await login(owner.email);
+    const sessionSocket = await connect(ownerSecondSession.accessToken);
+    await emitAck<JoinAck>(sessionSocket, 'document:join', { documentId });
+    await expect(
+      emitAck<FailureAck>(
+        sessionSocket,
+        'document:command',
+        moveCommand(documentId, 1, 'person', 600, 80),
+      ),
+    ).resolves.toMatchObject({ ok: false, code: 'ELEMENT_LOCKED' });
+
+    await api()
+      .put(`/projects/${projectId}/documents/${documentId}`)
+      .set(bearer(owner))
+      .send({ expectedRevision: 1, canonicalModel: structuredClone(validModel) })
+      .expect(409);
+    expect(await prisma.umlDocument.findUniqueOrThrow({ where: { id: documentId } })).toMatchObject(
+      { revision: 1 },
+    );
+    expect(await prisma.documentOperation.count({ where: { documentId } })).toBe(1);
+
+    await expect(
+      emitAck<{ ok: true }>(tabA1, 'lock:release', {
+        documentId,
+        elementId: 'person',
+        leaseId: lock.lock.leaseId,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    const afterRelease = await emitAck<CommandAck>(
+      tabA2,
+      'document:command',
+      moveCommand(documentId, 1, 'person', 640, 96),
+    );
+    expect(afterRelease).toMatchObject({ ok: true, revision: 2 });
+  });
+
+  it('charges command quota before consulting the session', async () => {
+    const { documentId } = await createDocument(owner);
+    const ownerSocket = await connect(owner.accessToken);
+    await emitAck<JoinAck>(ownerSocket, 'document:join', { documentId });
+    const verifier = app.get(AccessTokenVerifierService);
+    const sessionChecks = jest.spyOn(verifier, 'isSessionActive');
+    try {
+      sessionChecks.mockClear();
+      await expect(
+        emitAck<CommandAck>(
+          ownerSocket,
+          'document:command',
+          moveCommand(documentId, 0, 'person', 500, 60),
+        ),
+      ).resolves.toMatchObject({ ok: true, revision: 1 });
+      await expect(
+        emitAck<FailureAck>(
+          ownerSocket,
+          'document:command',
+          moveCommand(documentId, 0, 'person', 501, 61),
+        ),
+      ).resolves.toMatchObject({ ok: false, code: 'REVISION_CONFLICT' });
+      const admittedChecks = sessionChecks.mock.calls.length;
+      expect(admittedChecks).toBeGreaterThan(0);
+      await expect(
+        emitAck<FailureAck>(
+          ownerSocket,
+          'document:command',
+          moveCommand(documentId, 1, 'person', 502, 62),
+        ),
+      ).resolves.toMatchObject({ ok: false, code: 'RATE_LIMITED' });
+      expect(sessionChecks.mock.calls.length).toBe(admittedChecks);
+    } finally {
+      sessionChecks.mockRestore();
+    }
   });
 });
