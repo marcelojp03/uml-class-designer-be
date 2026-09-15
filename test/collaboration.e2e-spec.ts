@@ -1,6 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import Ajv2020 from 'ajv/dist/2020';
+import addFormats from 'ajv-formats';
+import type { AnySchema, ValidateFunction } from 'ajv';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -73,6 +76,20 @@ interface ResyncRequired {
 }
 
 const authIntent = { 'X-Auth-Intent': '1' };
+
+function operationEventValidator(): ValidateFunction {
+  const canonicalSchema = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'contracts/uml-model.schema.json'), 'utf8'),
+  ) as AnySchema;
+  const collaborationSchema = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'contracts/collaboration-protocol.schema.json'), 'utf8'),
+  ) as AnySchema & { $id: string };
+  const ajv = new Ajv2020({ allErrors: true, strict: true });
+  addFormats(ajv);
+  ajv.addSchema(canonicalSchema);
+  ajv.addSchema(collaborationSchema);
+  return ajv.getSchema(`${collaborationSchema.$id}#/$defs/documentOperationEvent`)!;
+}
 const validModel = JSON.parse(
   readFileSync(resolve(process.cwd(), 'contracts/fixtures/valid-uml-model.json'), 'utf8'),
 ) as CanonicalUmlModel;
@@ -1323,6 +1340,63 @@ describe('authenticated realtime collaboration (e2e)', () => {
       moveCommand(documentId, 1, 'person', 640, 96),
     );
     expect(afterRelease).toMatchObject({ ok: true, revision: 2 });
+  });
+
+  it('validates the emitted document:operation against the protocol schema', async () => {
+    const { documentId } = await createDocument(owner, true);
+    const ownerSocket = await connect(owner.accessToken);
+    const editorSocket = await connect(editor.accessToken);
+    await emitAck<JoinAck>(ownerSocket, 'document:join', { documentId });
+    await emitAck<JoinAck>(editorSocket, 'document:join', { documentId });
+
+    const input = moveCommand(documentId, 0, 'person', 512, 72);
+    const broadcast = waitForEvent<Record<string, unknown>>(editorSocket, 'document:operation');
+    await expect(
+      emitAck<CommandAck>(ownerSocket, 'document:command', input),
+    ).resolves.toMatchObject({ ok: true, operationId: input.operationId, revision: 1 });
+    const event = await broadcast;
+
+    expect(Object.keys(event).toSorted()).toEqual([
+      'actorId',
+      'baseRevision',
+      'command',
+      'committedAt',
+      'documentId',
+      'operationId',
+      'revision',
+    ]);
+    expect(event).not.toHaveProperty('ok');
+    const validate = operationEventValidator();
+    expect(validate(event)).toBe(true);
+    expect(validate.errors).toBeNull();
+
+    const withoutActor = { ...event } as Record<string, unknown>;
+    delete withoutActor.actorId;
+    expect(validate(withoutActor)).toBe(false);
+
+    expect(validate({ ...event, ok: true })).toBe(false);
+  });
+
+  it('rejects malformed commands within quota without consulting the session', async () => {
+    const { documentId } = await createDocument(owner);
+    const ownerSocket = await connect(owner.accessToken);
+    await emitAck<JoinAck>(ownerSocket, 'document:join', { documentId });
+    const verifier = app.get(AccessTokenVerifierService);
+    const sessionChecks = jest.spyOn(verifier, 'isSessionActive');
+    try {
+      sessionChecks.mockClear();
+      await expect(
+        emitAck<FailureAck>(ownerSocket, 'document:command', {
+          operationId: randomUUID(),
+          documentId,
+          baseRevision: 0,
+          command: { type: 'model.replace', timestamp: '2026-09-08T12:00:00.000Z' },
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'INVALID_COMMAND' });
+      expect(sessionChecks).not.toHaveBeenCalled();
+    } finally {
+      sessionChecks.mockRestore();
+    }
   });
 
   it('charges command quota before consulting the session', async () => {
