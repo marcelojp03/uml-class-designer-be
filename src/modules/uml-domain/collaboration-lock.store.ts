@@ -140,7 +140,11 @@ export class CollaborationLockStore implements OnApplicationShutdown {
     }
   }
 
-  hasLockByAnotherUser(documentId: string, elementIds: Set<string>, userId: string): boolean {
+  hasLockOwnedByAnotherSocket(
+    documentId: string,
+    elementIds: Set<string>,
+    socketId: string,
+  ): boolean {
     this.expireDocument(documentId);
     const documentLocks = this.locksByDocument.get(documentId);
     if (!documentLocks) {
@@ -148,8 +152,17 @@ export class CollaborationLockStore implements OnApplicationShutdown {
     }
     return [...elementIds].some((elementId) => {
       const lock = documentLocks.get(elementId);
-      return lock !== undefined && lock.userId !== userId;
+      return lock !== undefined && lock.socketId !== socketId;
     });
+  }
+
+  hasAnyLock(documentId: string, elementIds: Set<string>): boolean {
+    this.expireDocument(documentId);
+    const documentLocks = this.locksByDocument.get(documentId);
+    if (!documentLocks) {
+      return false;
+    }
+    return [...elementIds].some((elementId) => documentLocks.has(elementId));
   }
 
   reconcileDocumentElements(documentId: string, activeElementIds: Set<string>): void {

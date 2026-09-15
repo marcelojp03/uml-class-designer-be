@@ -161,12 +161,11 @@ export class DocumentsService {
             });
           }
           if (
-            this.lockStore.hasLockByAnotherUser(
+            this.lockStore.hasAnyLock(
               documentId,
               new Set(
                 this.activeElementIds(currentDocument.canonicalModel as Record<string, unknown>),
               ),
-              userId,
             )
           ) {
             throw new ConflictException('A locked element prevents replacing this document.');

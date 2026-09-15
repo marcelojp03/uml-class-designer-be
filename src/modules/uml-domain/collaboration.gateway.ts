@@ -258,9 +258,7 @@ export class CollaborationGateway
     }
     let pendingDocumentId: string | undefined;
     try {
-      await this.assertActiveSession(client);
-      if (!this.allowControlEvent(client)) {
-        this.reply(ack, this.failure('RATE_LIMITED'));
+      if (!this.admitControlEvent(client, ack)) {
         return;
       }
       const input = this.contractValidator.validate('documentJoin', payload);
@@ -352,8 +350,7 @@ export class CollaborationGateway
       return;
     }
     try {
-      if (!this.allowControlEvent(client)) {
-        this.reply(ack, this.failure('RATE_LIMITED'));
+      if (!this.admitControlEvent(client, ack)) {
         return;
       }
       const input = this.contractValidator.validate('documentLeave', payload);
@@ -385,15 +382,7 @@ export class CollaborationGateway
       return;
     }
     try {
-      await this.assertActiveSession(client);
-      if (
-        !this.rateLimiter.allowCommand(
-          client.id,
-          this.config().commandLimit,
-          this.config().commandWindowMs,
-        )
-      ) {
-        this.reply(ack, this.failure('RATE_LIMITED', this.operationIdFromPayload(payload)));
+      if (!this.admitCommand(client, ack, payload)) {
         return;
       }
       const input = this.contractValidator.validate('documentCommand', payload);
@@ -404,7 +393,7 @@ export class CollaborationGateway
         }
 
         const identity = this.identity(client);
-        const committed = await this.documentCommands.process(identity, input);
+        const committed = await this.documentCommands.process(identity, input, client.id);
         this.presenceStore.touch(input.documentId, client.id);
         if (committed.requiresBroadcast) {
           const currentDocument = await this.documentCommands.getCurrentDocument(input.documentId);
@@ -467,9 +456,7 @@ export class CollaborationGateway
       return;
     }
     try {
-      await this.assertActiveSession(client);
-      if (!this.allowControlEvent(client)) {
-        this.reply(ack, this.failure('RATE_LIMITED'));
+      if (!this.admitControlEvent(client, ack)) {
         return;
       }
       const input = this.contractValidator.validate('presenceUpdate', payload);
@@ -510,9 +497,7 @@ export class CollaborationGateway
       return;
     }
     try {
-      await this.assertActiveSession(client);
-      if (!this.allowControlEvent(client)) {
-        this.reply(ack, this.failure('RATE_LIMITED'));
+      if (!this.admitControlEvent(client, ack)) {
         return;
       }
       const input = this.contractValidator.validate('lockAcquire', payload);
@@ -577,9 +562,7 @@ export class CollaborationGateway
     action: 'renew' | 'release',
   ): Promise<void> {
     try {
-      await this.assertActiveSession(client);
-      if (!this.allowControlEvent(client)) {
-        this.reply(ack, this.failure('RATE_LIMITED'));
+      if (!this.admitControlEvent(client, ack)) {
         return;
       }
       const input = this.contractValidator.validate(schema, payload);
@@ -1058,13 +1041,55 @@ export class CollaborationGateway
   }
 
   private async assertActiveSession(client: CollaborationSocket): Promise<void> {
+    const identity = this.requireLocalIdentity(client);
+    if (!(await this.accessTokenVerifier.isSessionActive(identity.userId, identity.sessionId))) {
+      throw new CollaborationOperationError('SESSION_REVOKED');
+    }
+  }
+
+  private requireLocalIdentity(client: CollaborationSocket): CollaborationIdentity {
     const identity = this.identity(client);
     if (!this.hasActiveAccessToken(identity)) {
       throw new CollaborationOperationError('UNAUTHENTICATED');
     }
-    if (!(await this.accessTokenVerifier.isSessionActive(identity.userId, identity.sessionId))) {
-      throw new CollaborationOperationError('SESSION_REVOKED');
+    return identity;
+  }
+
+  private admitControlEvent(client: CollaborationSocket, ack: AckCallback): boolean {
+    try {
+      this.requireLocalIdentity(client);
+    } catch (error: unknown) {
+      this.reply(ack, this.toFailure(error));
+      this.disconnectForAuthenticationFailure(client, error);
+      return false;
     }
+    if (!this.allowControlEvent(client)) {
+      this.reply(ack, this.failure('RATE_LIMITED'));
+      return false;
+    }
+    return true;
+  }
+
+  private admitCommand(client: CollaborationSocket, ack: AckCallback, payload: unknown): boolean {
+    const operationId = this.operationIdFromPayload(payload);
+    try {
+      this.requireLocalIdentity(client);
+    } catch (error: unknown) {
+      this.reply(ack, this.toFailure(error, operationId));
+      this.disconnectForAuthenticationFailure(client, error);
+      return false;
+    }
+    if (
+      !this.rateLimiter.allowCommand(
+        client.id,
+        this.config().commandLimit,
+        this.config().commandWindowMs,
+      )
+    ) {
+      this.reply(ack, this.failure('RATE_LIMITED', operationId));
+      return false;
+    }
+    return true;
   }
 
   private disconnectForAuthenticationFailure(client: CollaborationSocket, error: unknown): void {

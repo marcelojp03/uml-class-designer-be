@@ -142,11 +142,12 @@ export class DocumentCommandService {
   async process(
     identity: CollaborationIdentity,
     input: DocumentCommandPayload,
+    socketId: string,
   ): Promise<ProcessedDocumentCommand> {
     const fingerprint = this.commandFingerprint(input.baseRevision, input.command);
     try {
       return await this.prisma.$transaction((transaction) =>
-        this.processInTransaction(transaction, identity, input, fingerprint),
+        this.processInTransaction(transaction, identity, input, fingerprint, socketId),
       );
     } catch (error: unknown) {
       if (this.isKnownUniqueConstraint(error)) {
@@ -164,6 +165,7 @@ export class DocumentCommandService {
     identity: CollaborationIdentity,
     input: DocumentCommandPayload,
     fingerprint: string,
+    socketId: string,
   ): Promise<ProcessedDocumentCommand> {
     const document = await this.lockCommandAuthorization(transaction, identity, input.documentId);
 
@@ -196,7 +198,7 @@ export class DocumentCommandService {
     try {
       affectedElementIds = this.commandExecutor.affectedElementIds(currentModel, input.command);
       if (
-        this.lockStore.hasLockByAnotherUser(input.documentId, affectedElementIds, identity.userId)
+        this.lockStore.hasLockOwnedByAnotherSocket(input.documentId, affectedElementIds, socketId)
       ) {
         throw new CollaborationOperationError('ELEMENT_LOCKED');
       }
