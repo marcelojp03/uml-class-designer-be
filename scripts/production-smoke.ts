@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 
-const baseUrl = 'http://localhost:3001';
+const baseUrl = 'http://127.0.0.1:3001';
 const pnpmExecPath = process.env.npm_execpath;
 const shutdownTimeoutMs = 10_000;
 
