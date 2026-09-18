@@ -113,6 +113,20 @@ describe('CanonicalModelValidator', () => {
     });
   });
 
+  it('rejects persistence IDs that collide with canonical classifier IDs', () => {
+    const model = loadFixture('valid-uml-model.json');
+    const renamed = JSON.parse(
+      JSON.stringify(model).replaceAll('"person"', '"project_collision"'),
+    ) as Record<string, unknown>;
+
+    expect(() =>
+      validator.validateAndNormalize(renamed, 0, new Date(), {
+        projectId: 'collision',
+        documentId: 'document',
+      }),
+    ).toThrow(BadRequestException);
+  });
+
   it('rejects whitespace-only semantic names', () => {
     const model = loadFixture('valid-uml-model.json');
     const diagram = model.diagram as { elements: Array<{ name: string }> };
