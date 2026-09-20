@@ -51,7 +51,7 @@ export class ProjectMembersController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Agrega como EDITOR una cuenta confirmada por correo e ID' })
+  @ApiOperation({ summary: 'Agrega un EDITOR o VIEWER mediante correo e ID confirmados' })
   @ApiCreatedResponse({ type: ProjectMemberResponseDto })
   @ApiConflictResponse({ description: 'El usuario ya es miembro.' })
   @ApiNotFoundResponse({ description: 'Proyecto o usuario registrado inexistente.' })

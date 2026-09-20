@@ -38,7 +38,7 @@ export class RevisionConflictResponseDto {
   @ApiProperty({ example: 'Document revision conflict.' })
   message!: string;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({ type: 'integer', format: 'int32', minimum: 0 })
   currentRevision!: number;
 }
 

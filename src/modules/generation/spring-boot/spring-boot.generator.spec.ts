@@ -840,15 +840,7 @@ describe('spring boot project generator', () => {
         }),
       ]),
     );
-    const binaryKeyService = file(
-      generateSpringBootProject(byteIdentifier),
-      'src/main/java/com/generated/generateddemo/application/service/BinaryKeyService.java',
-    );
-    expect(binaryKeyService).toContain('parseByte(parts[0], "code")');
-    expect(binaryKeyService).toContain('parseByteArray(parts[1], "payload")');
-    expect(binaryKeyService).toContain(
-      'private byte[] parseByteArray(String rawValue, String fieldName)',
-    );
+    expectIssue(() => generateSpringBootProject(byteIdentifier), 'IDENTIFIER_TYPE_UNSUPPORTED');
   });
 
   it('supports cyclic primary-key foreign keys and preserves shared-primary-key one-to-one mappings', () => {
@@ -965,5 +957,25 @@ describe('spring boot project generator', () => {
       () => generateSpringBootProject(caseInsensitivePathCollision),
       'OUTPUT_PATH_COLLISION',
     );
+  });
+
+  it('emits the documented ApiError contract for generated HTTP failures', () => {
+    const project = generateSpringBootProject(relationalFixture('01-simple-crud.json'));
+    const apiError = file(
+      project,
+      'src/main/java/com/generated/simplecrud/shared/exception/ApiError.java',
+    );
+    const exceptionHandler = file(
+      project,
+      'src/main/java/com/generated/simplecrud/shared/exception/ApiExceptionHandler.java',
+    );
+
+    expect(apiError).toContain(
+      'public record ApiError(int status, String code, String message) {}',
+    );
+    expect(exceptionHandler).toContain('RESOURCE_NOT_FOUND');
+    expect(exceptionHandler).toContain('VALIDATION_ERROR');
+    expect(exceptionHandler).toContain('CONSTRAINT_VIOLATION');
+    expect(exceptionHandler).not.toContain('ProblemDetail');
   });
 });

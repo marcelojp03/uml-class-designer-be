@@ -10,6 +10,7 @@ datasource db {
 enum ProjectRole {
   OWNER
   EDITOR
+  VIEWER
 }
 
 model User {

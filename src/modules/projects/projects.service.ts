@@ -194,7 +194,7 @@ export class ProjectsService {
         }
 
         const created = await transaction.projectMember.create({
-          data: { projectId, userId: user.id, role: ProjectRole.EDITOR },
+          data: { projectId, userId: user.id, role: input.role ?? ProjectRole.EDITOR },
           select: { userId: true, role: true, createdAt: true },
         });
         return { ...created, user };

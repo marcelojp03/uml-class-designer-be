@@ -461,6 +461,10 @@ export function generateSpringBootProject(
       content: renderInvalidIdentifierException(context),
     },
     {
+      path: `src/main/java/${context.packagePath}/shared/exception/ApiError.java`,
+      content: renderApiError(context),
+    },
+    {
       path: `src/main/java/${context.packagePath}/shared/exception/ApiExceptionHandler.java`,
       content: renderApiExceptionHandler(context),
     },
@@ -1520,9 +1524,6 @@ function renderService(context: GenerationContext, table: RelationalTable): stri
   }
   const identifierTypes = identifier.columns.map((column) => scalarJavaType(context, root, column));
   addParserImports(imports, identifierTypes);
-  if (identifier.type === 'byte[]') {
-    imports.add('java.util.Arrays');
-  }
   for (const target of referenceTargets) {
     imports.add(`${repositoryPackage(context)}.${target.javaEntityName}Repository`);
   }
@@ -1581,7 +1582,7 @@ function renderService(context: GenerationContext, table: RelationalTable): stri
     '  @Transactional',
     `  public ${table.javaEntityName}Dto update(String rawId, ${table.javaEntityName}Dto request) {`,
     `    ${identifier.type} identifier = parseIdentifier(rawId);`,
-    `    if (request.getId() != null && !${identifierEqualsRequestExpression(identifier)}) {`,
+    `    if (request.getId() != null && !${identifierEqualsRequestExpression()}) {`,
     '      throw new InvalidIdentifierException("Request identifier does not match path identifier");',
     '    }',
     `    ${table.javaEntityName} entity = repository.findById(identifier).orElseThrow(() -> new ResourceNotFoundException("${table.javaEntityName} not found"));`,
@@ -1797,18 +1798,6 @@ function renderScalarParser(type: string): string[] {
       '',
     ];
   }
-  if (type === 'byte[]') {
-    return [
-      '  private byte[] parseByteArray(String rawValue, String fieldName) {',
-      '    try {',
-      '      return Base64.getUrlDecoder().decode(rawValue);',
-      '    } catch (IllegalArgumentException error) {',
-      '      throw new InvalidIdentifierException("Invalid " + fieldName, error);',
-      '    }',
-      '  }',
-      '',
-    ];
-  }
   const expression = parseExpression[type];
   if (!expression) {
     throw generationError(
@@ -1917,12 +1906,23 @@ function renderInvalidIdentifierException(context: GenerationContext): string {
   ]);
 }
 
+function renderApiError(context: GenerationContext): string {
+  return lines([
+    `package ${exceptionPackage(context)};`,
+    '',
+    'public record ApiError(int status, String code, String message) {}',
+  ]);
+}
+
 function renderApiExceptionHandler(context: GenerationContext): string {
   return lines([
     `package ${exceptionPackage(context)};`,
     '',
+    'import org.springframework.dao.DataIntegrityViolationException;',
     'import org.springframework.http.HttpStatus;',
-    'import org.springframework.http.ProblemDetail;',
+    'import org.springframework.http.ResponseEntity;',
+    'import org.springframework.http.converter.HttpMessageNotReadableException;',
+    'import org.springframework.web.bind.MethodArgumentNotValidException;',
     'import org.springframework.web.bind.annotation.ExceptionHandler;',
     'import org.springframework.web.bind.annotation.RestControllerAdvice;',
     '',
@@ -1930,13 +1930,27 @@ function renderApiExceptionHandler(context: GenerationContext): string {
     'public class ApiExceptionHandler {',
     '',
     '  @ExceptionHandler(ResourceNotFoundException.class)',
-    '  public ProblemDetail handleNotFound(ResourceNotFoundException exception) {',
-    '    return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());',
+    '  public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException exception) {',
+    '    return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", exception.getMessage());',
     '  }',
     '',
     '  @ExceptionHandler(InvalidIdentifierException.class)',
-    '  public ProblemDetail handleInvalidIdentifier(InvalidIdentifierException exception) {',
-    '    return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());',
+    '  public ResponseEntity<ApiError> handleInvalidIdentifier(InvalidIdentifierException exception) {',
+    '    return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", exception.getMessage());',
+    '  }',
+    '',
+    '  @ExceptionHandler({ MethodArgumentNotValidException.class, HttpMessageNotReadableException.class })',
+    '  public ResponseEntity<ApiError> handleRequestValidation(Exception exception) {',
+    '    return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request validation failed.");',
+    '  }',
+    '',
+    '  @ExceptionHandler(DataIntegrityViolationException.class)',
+    '  public ResponseEntity<ApiError> handleConstraintViolation(DataIntegrityViolationException exception) {',
+    '    return error(HttpStatus.CONFLICT, "CONSTRAINT_VIOLATION", "Database constraint violation.");',
+    '  }',
+    '',
+    '  private ResponseEntity<ApiError> error(HttpStatus status, String code, String message) {',
+    '    return ResponseEntity.status(status).body(new ApiError(status.value(), code, message));',
     '  }',
     '}',
   ]);
@@ -2149,6 +2163,16 @@ function identifierDescriptor(
 ): IdentifierDescriptor {
   const root = rootTable(context, table);
   const columns = primaryKeyColumns(root).map((column) => ({ ...column }));
+  const binaryColumn = columns.find(
+    (candidate) => scalarJavaType(context, root, candidate) === 'byte[]',
+  );
+  if (binaryColumn) {
+    throw generationError(
+      'IDENTIFIER_TYPE_UNSUPPORTED',
+      `Binary primary key ${binaryColumn.id} is unsupported because generated REST paths require a stable textual identifier.`,
+      `/tables/${root.id}/columns/${binaryColumn.id}/javaType`,
+    );
+  }
   if (columns.length > 1) {
     return {
       type: `${root.javaEntityName}Id`,
@@ -2161,8 +2185,9 @@ function identifierDescriptor(
   if (!column) {
     throw generationError('PRIMARY_KEY_MISSING', `Table ${table.id} has no primary-key column.`);
   }
+  const type = scalarJavaType(context, root, column);
   return {
-    type: scalarJavaType(context, root, column),
+    type,
     composite: false,
     generated: column.generated === 'UUID',
     columns,
@@ -2362,10 +2387,8 @@ function entityIdentifierSetter(
   return `entity.set${toAccessorName(column.javaPropertyName)}(${value});`;
 }
 
-function identifierEqualsRequestExpression(identifier: IdentifierDescriptor): string {
-  return identifier.type === 'byte[]'
-    ? 'Arrays.equals(identifier, request.getId())'
-    : 'identifier.equals(request.getId())';
+function identifierEqualsRequestExpression(): string {
+  return 'identifier.equals(request.getId())';
 }
 
 function renderTableAnnotation(table: RelationalTable): string {

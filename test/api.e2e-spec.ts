@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { ProjectRole } from '@prisma/client';
 import request = require('supertest');
 import { createConfiguredApp } from '../src/bootstrap';
 import { PrismaService } from '../src/modules/database/prisma.service';
@@ -51,6 +52,19 @@ function extractRefreshCookie(response: request.Response): string {
     throw new Error('Expected refresh cookie was not returned.');
   }
   return cookie.split(';', 1)[0] as string;
+}
+
+function binaryResponseParser(
+  response: request.Response,
+  callback: (error: Error | null, body: Buffer) => void,
+): void {
+  const chunks: Buffer[] = [];
+  const stream = response as unknown as NodeJS.ReadableStream;
+  stream.on('data', (chunk: Buffer | string) => {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  });
+  stream.on('error', (error: Error) => callback(error, Buffer.alloc(0)));
+  stream.on('end', () => callback(null, Buffer.concat(chunks)));
 }
 
 describe('Authentication, projects and UML persistence (e2e)', () => {
@@ -486,6 +500,12 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
         .set(bearer(owner))
         .send({ userId: outsider.id, email: editor.email })
         .expect(404);
+
+      await api()
+        .post(`/projects/${projectId}/members`)
+        .set(bearer(owner))
+        .send({ userId: outsider.id, email: outsider.email, role: ProjectRole.OWNER })
+        .expect(400);
     });
 
     it('prevents EDITOR from administering members or the project', async () => {
@@ -758,6 +778,155 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
         }
       });
 
+      it('exports the persisted snapshot deterministically without mutating it', async () => {
+        const before = await prisma.umlDocument.findUniqueOrThrow({
+          where: { id: documentId },
+          select: { canonicalModel: true, revision: true, updatedAt: true },
+        });
+        const exportPath = `/projects/${projectId}/documents/${documentId}/exports/spring-boot`;
+        const first = await api()
+          .post(exportPath)
+          .set(bearer(owner))
+          .send({ expectedRevision: before.revision })
+          .buffer(true)
+          .parse(binaryResponseParser)
+          .expect(200);
+        const second = await api()
+          .post(exportPath)
+          .set(bearer(owner))
+          .send({ expectedRevision: before.revision })
+          .buffer(true)
+          .parse(binaryResponseParser)
+          .expect(200);
+
+        expect(first.headers['content-type']).toMatch(/^application\/zip/);
+        expect(first.headers['content-disposition']).toMatch(
+          /attachment; filename="[a-z0-9.-]+-spring-boot-r\d+\.zip"/,
+        );
+        expect(first.headers['cache-control']).toBe('private, no-store');
+        expect(first.headers['x-content-type-options']).toBe('nosniff');
+        expect(first.headers['x-document-revision']).toBe(String(before.revision));
+        expect(first.headers['x-generator-version']).toBeDefined();
+        expect(Buffer.isBuffer(first.body)).toBe(true);
+        expect(first.headers['content-length']).toBe(String(first.body.byteLength));
+        expect(first.body.equals(second.body as Buffer)).toBe(true);
+        expect(first.body.includes(Buffer.from('generation-manifest.json'))).toBe(true);
+        expect(first.body.includes(Buffer.from('openapi/generated-api.openapi.json'))).toBe(true);
+        expect(
+          first.body.includes(Buffer.from('postman/generated-api.postman_collection.json')),
+        ).toBe(true);
+        expect(await prisma.umlDocument.findUnique({ where: { id: documentId } })).toMatchObject(
+          before,
+        );
+      });
+
+      it('requires current revision and exporter membership while denying VIEWER exports', async () => {
+        const persisted = await prisma.umlDocument.findUniqueOrThrow({
+          where: { id: documentId },
+          select: { revision: true },
+        });
+        const exportPath = `/projects/${projectId}/documents/${documentId}/exports/spring-boot`;
+        const stale = await api()
+          .post(exportPath)
+          .set(bearer(owner))
+          .send({ expectedRevision: persisted.revision - 1 })
+          .expect(409);
+        expect(stale.headers['content-type']).toMatch(/^application\/json/);
+        expect(stale.body).toMatchObject({
+          message: 'Document revision conflict.',
+          currentRevision: persisted.revision,
+        });
+
+        const editorExport = await api()
+          .post(exportPath)
+          .set(bearer(editor))
+          .send({ expectedRevision: persisted.revision })
+          .buffer(true)
+          .parse(binaryResponseParser)
+          .expect(200);
+        expect(editorExport.body.subarray(0, 2).toString('utf8')).toBe('PK');
+
+        await api()
+          .post(exportPath)
+          .set(bearer(outsider))
+          .send({ expectedRevision: persisted.revision })
+          .expect(404);
+
+        const viewer = await register('viewer.export@example.com', 'Export Viewer');
+        await api()
+          .post(`/projects/${projectId}/members`)
+          .set(bearer(owner))
+          .send({ userId: viewer.id, email: viewer.email, role: ProjectRole.VIEWER })
+          .expect(201);
+        await api()
+          .post(exportPath)
+          .set(bearer(viewer))
+          .send({ expectedRevision: persisted.revision })
+          .expect(403);
+
+        await api()
+          .post(`/projects/${otherProjectId}/documents/${documentId}/exports/spring-boot`)
+          .set(bearer(outsider))
+          .send({ expectedRevision: persisted.revision })
+          .expect(404);
+      });
+
+      it('rejects revoked sessions and corrupted persisted snapshots without a ZIP', async () => {
+        const revokedExporter = await register('revoked.export@example.com', 'Revoked Exporter');
+        await api()
+          .post(`/projects/${projectId}/members`)
+          .set(bearer(owner))
+          .send({
+            userId: revokedExporter.id,
+            email: revokedExporter.email,
+            role: ProjectRole.EDITOR,
+          })
+          .expect(201);
+        await api()
+          .post('/auth/logout')
+          .set('Cookie', revokedExporter.refreshCookie)
+          .set(authIntent)
+          .expect(204);
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/exports/spring-boot`)
+          .set(bearer(revokedExporter))
+          .send({ expectedRevision: 2 })
+          .expect(401);
+
+        const corrupted = await api()
+          .post(`/projects/${projectId}/documents`)
+          .set(bearer(owner))
+          .send({ name: 'Corrupted persisted snapshot', canonicalModel: validModel })
+          .expect(201);
+        const corruptedId = corrupted.body.id as string;
+        await prisma.umlDocument.update({
+          where: { id: corruptedId },
+          data: { canonicalModel: { unexpected: true } as never },
+        });
+        const invalidSnapshot = await api()
+          .post(`/projects/${projectId}/documents/${corruptedId}/exports/spring-boot`)
+          .set(bearer(owner))
+          .send({ expectedRevision: 0 })
+          .expect(400);
+        expect(invalidSnapshot.headers['content-type']).not.toMatch(/^application\/zip/);
+      });
+
+      it('rejects export payloads that attempt to supply untrusted generation input', async () => {
+        const persisted = await prisma.umlDocument.findUniqueOrThrow({
+          where: { id: documentId },
+          select: { revision: true },
+        });
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/exports/spring-boot`)
+          .set(bearer(owner))
+          .send({
+            expectedRevision: persisted.revision,
+            canonicalModel: validModel,
+            options: { artifactId: '../escape' },
+          })
+          .expect(400);
+      });
+
       it('defines deletion as an OWNER-or-EDITOR document permission', async () => {
         const disposable = await api()
           .post(`/projects/${projectId}/documents`)
@@ -774,6 +943,11 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
         expect(await prisma.documentRevision.count({ where: { documentId: disposableId } })).toBe(
           0,
         );
+        await api()
+          .post(`/projects/${projectId}/documents/${disposableId}/exports/spring-boot`)
+          .set(bearer(editor))
+          .send({ expectedRevision: 0 })
+          .expect(404);
       });
 
       it('deletes a project, memberships, documents and revisions atomically', async () => {

@@ -14,7 +14,7 @@ import type {
 } from './collaboration.types';
 import { UmlCommandExecutionError, UmlCommandExecutor } from './uml-command.executor';
 
-const COLLABORATION_ROLES = [ProjectRole.OWNER, ProjectRole.EDITOR];
+const COLLABORATION_ROLES: ProjectRole[] = [ProjectRole.OWNER, ProjectRole.EDITOR];
 
 export interface AuthorizedDocument {
   id: string;

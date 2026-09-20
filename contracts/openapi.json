@@ -463,7 +463,7 @@
             "access-token": []
           }
         ],
-        "summary": "Agrega como EDITOR una cuenta confirmada por correo e ID",
+        "summary": "Agrega un EDITOR o VIEWER mediante correo e ID confirmados",
         "tags": [
           "project-members"
         ]
@@ -786,6 +786,117 @@
           "uml-documents"
         ]
       }
+    },
+    "/projects/{projectId}/documents/{documentId}/exports/spring-boot": {
+      "post": {
+        "operationId": "DocumentsController_exportSpringBoot",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportSpringBootDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ZIP Spring Boot generado desde el snapshot autorizado.",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "example": "private, no-store"
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "example": "nosniff"
+                }
+              },
+              "X-Document-Revision": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Generator-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Snapshot persistido u opciones de exportacion invalidos."
+          },
+          "403": {
+            "description": "Un VIEWER no puede exportar."
+          },
+          "404": {
+            "description": "Proyecto o documento inexistente, eliminado o inaccesible."
+          },
+          "409": {
+            "description": "La revision esperada no coincide con la revision persistida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionConflictResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Se alcanzo el limite local de frecuencia o concurrencia."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Exporta el snapshot UML persistido como ZIP Spring Boot determinista",
+        "tags": [
+          "uml-documents"
+        ]
+      }
     }
   },
   "info": {
@@ -923,7 +1034,8 @@
             "type": "string",
             "enum": [
               "OWNER",
-              "EDITOR"
+              "EDITOR",
+              "VIEWER"
             ]
           },
           "createdAt": {
@@ -995,7 +1107,8 @@
             "type": "string",
             "enum": [
               "OWNER",
-              "EDITOR"
+              "EDITOR",
+              "VIEWER"
             ]
           },
           "createdAt": {
@@ -1023,6 +1136,15 @@
             "type": "string",
             "format": "email",
             "example": "editor@example.com"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "EDITOR",
+              "VIEWER"
+            ],
+            "default": "EDITOR",
+            "description": "Solo se pueden asignar roles EDITOR o VIEWER; OWNER se crea con el proyecto."
           }
         },
         "required": [
@@ -1038,7 +1160,8 @@
             "example": "Document revision conflict."
           },
           "currentRevision": {
-            "type": "number",
+            "type": "integer",
+            "format": "int32",
             "minimum": 0
           }
         },
@@ -1201,6 +1324,54 @@
           "updatedAt",
           "canonicalModel"
         ]
+      },
+      "SpringBootExportOptionsDto": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "example": "com.example",
+            "maxLength": 160,
+            "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9]*)*$"
+          },
+          "artifactId": {
+            "type": "string",
+            "example": "generated-app",
+            "maxLength": 100,
+            "pattern": "^[a-z][a-z0-9.-]{0,99}$"
+          },
+          "packageName": {
+            "type": "string",
+            "example": "com.example.generated",
+            "maxLength": 160,
+            "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9]*)*$"
+          },
+          "applicationName": {
+            "type": "string",
+            "example": "GeneratedApplication",
+            "maxLength": 160,
+            "pattern": "^[A-Z][A-Za-z0-9_$]*$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExportSpringBootDto": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "example": 7
+          },
+          "options": {
+            "$ref": "#/components/schemas/SpringBootExportOptionsDto"
+          }
+        },
+        "required": [
+          "expectedRevision"
+        ],
+        "additionalProperties": false
       },
       "UpdateDocumentDto": {
         "type": "object",

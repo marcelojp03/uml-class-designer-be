@@ -1,6 +1,6 @@
 # UML Class Designer Backend
 
-Backend interno de la herramienta CASE. No es el backend Spring Boot que se generará en etapas posteriores.
+Backend interno de la herramienta CASE. No es el backend Spring Boot exportado; genera proyectos Spring Boot descargables desde snapshots UML autorizados.
 
 ## Requisitos
 
@@ -34,11 +34,35 @@ Las variables críticas `NODE_ENV`, `DATABASE_URL` y `AUTH_JWT_SECRET` son oblig
 
 ## Proyectos y documentos
 
-`ProjectRole` contiene exclusivamente `OWNER` y `EDITOR`. El propietario administra el proyecto y sus miembros; ambos roles pueden operar documentos UML, incluida la eliminación. Un usuario sin membresía recibe 404 para recursos ajenos.
+`ProjectRole` contiene `OWNER`, `EDITOR` y `VIEWER`. El propietario administra el proyecto y sus miembros; OWNER y EDITOR pueden mutar y exportar documentos UML. VIEWER puede consultar recursos permitidos, pero no puede mutar, colaborar ni exportar. Un usuario sin membresía recibe 404 para recursos ajenos.
 
 El alta de un editor exige correo normalizado y el UUID de cuenta compartido por el propio usuario. No se implementan invitaciones ni verificación de correo en este incremento.
 
 Cada documento conserva el modelo canónico `0.1.0`, revisión actual y snapshots inmutables. `PUT` exige `expectedRevision`, ejecuta compare-and-swap atómico y devuelve 409 sin sobrescribir cuando existe conflicto. Las mutaciones REST bloquean la sesión PostgreSQL activa y la membresía dentro de su transacción, por lo que un logout o retiro concurrente gana antes de que la escritura pueda confirmar. Los IDs canónicos se normalizan de forma determinista desde los UUID persistidos; React Flow nunca se almacena como fuente de verdad. Un `PUT` activo emite `document:resync-required` a clientes autorizados y un `DELETE` los evacúa con `document:deleted`.
+
+## Exportación Spring Boot
+
+`POST /projects/:projectId/documents/:documentId/exports/spring-boot` requiere Bearer token y un cuerpo con `expectedRevision` y, opcionalmente, `groupId`, `artifactId`, `packageName` y `applicationName`. Solo OWNER y EDITOR exportan; VIEWER recibe 403 y quien no pertenece al proyecto recibe 404. El servicio vuelve a consultar el documento con alcance actor/proyecto, por lo que un `projectId`/`documentId` cruzado tampoco revela información.
+
+La exportación usa exclusivamente el snapshot canónico persistido: valida el snapshot, obtiene `RelationalModel 0.1.0`, reutiliza el generador puro y devuelve un ZIP binario determinista. No modifica el documento ni su revisión. Una revisión distinta devuelve `409 application/json` con `currentRevision`; snapshot u opciones inválidas devuelven 400. La respuesta ZIP incluye `Content-Disposition` saneado, `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `X-Document-Revision` y `X-Generator-Version`.
+
+Cada ZIP contiene el proyecto Java, `openapi/generated-api.openapi.json` OpenAPI 3.1, `postman/generated-api.postman_collection.json` v2.1 y `generation-manifest.json` con hashes SHA-256. Una allowlist cerrada admite solo archivos del scaffold, OpenAPI, Postman, manifiesto y migraciones generadas; rechaza `.env`, secretos, rutas absolutas, traversal, ZIPs anidados y entradas duplicadas. El empaquetado usa `archiver@7.0.1` (MIT, CommonJS compatible con el backend) y `newman@6.2.2` (Apache-2.0) para ejecutar la colección en runtime.
+
+Límites locales actuales: 100 tablas, 200 relaciones, snapshot de 1 MiB, 1000 archivos, 10 MiB sin comprimir, ZIP de 5 MiB, 10 segundos para generación/empaquetado, dos exportaciones concurrentes y cinco solicitudes por actor cada 60 segundos. Las entradas canónicas sobredimensionadas se rechazan antes de transformación; el seguimiento de cuota expira actores inactivos y tiene una capacidad máxima. Las claves primarias `byte[]` se rechazan explícitamente porque no existe una codificación URL de identidad canónica en esta versión. Las cuotas son locales al proceso; múltiples réplicas requerirán coordinación distribuida. No se agrega Redis en este incremento.
+
+Para ejecutar un ZIP descargado:
+
+```powershell
+$env:DB_URL='jdbc:postgresql://127.0.0.1:5432/app'
+$env:DB_USERNAME='app'
+$env:DB_PASSWORD='una-clave-local'
+$env:SERVER_PORT='8080'
+mvn --batch-mode -DskipTests package
+& "$env:JAVA_HOME\bin\java.exe" -jar target\*.jar
+pnpm exec newman run postman\generated-api.postman_collection.json --env-var baseUrl=http://127.0.0.1:8080
+```
+
+La aplicación exportada ejecuta Flyway y usa `hibernate.ddl-auto=validate`; no crea ni altera el esquema fuera de las migraciones generadas.
 
 ## Contrato canónico
 
@@ -91,7 +115,7 @@ COLLABORATION_OPERATION_RECOVERY_INTERVAL_MS=1000
 COLLABORATION_OPERATION_RECOVERY_BATCH_SIZE=100
 ```
 
-La migración `20260908120000_add_document_operations` agrega el registro idempotente por `(documentId, operationId)`, índices de revisión y referencias a documento/actor. `20260908130000_add_document_operation_delivery` añade `broadcastedAt` y marca las operaciones históricas como ya entregadas. `20260908140000_add_document_operation_recovery_index` añade el índice parcial de operaciones aún pendientes de difusión. `20260908150000_add_auth_session_refresh_sequence` añade la secuencia de refresh. `20260914120000_correct_document_operation_broadcasted_at` convierte `broadcastedAt` a `TIMESTAMPTZ(3)` con `USING ... AT TIME ZONE 'UTC'`, determinista ante cualquier zona de sesión. Aplique siempre `pnpm exec prisma migrate deploy`; no use `db push`.
+La migración `20260908120000_add_document_operations` agrega el registro idempotente por `(documentId, operationId)`, índices de revisión y referencias a documento/actor. `20260908130000_add_document_operation_delivery` añade `broadcastedAt` y marca las operaciones históricas como ya entregadas. `20260908140000_add_document_operation_recovery_index` añade el índice parcial de operaciones aún pendientes de difusión. `20260908150000_add_auth_session_refresh_sequence` añade la secuencia de refresh. `20260914120000_correct_document_operation_broadcasted_at` convierte `broadcastedAt` a `TIMESTAMPTZ(3)` con `USING ... AT TIME ZONE 'UTC'`, determinista ante cualquier zona de sesión. `20260920120000_add_project_viewer_role` añade `VIEWER`. Aplique siempre `pnpm exec prisma migrate deploy`; no use `db push`.
 
 ## Verificación
 
@@ -105,6 +129,7 @@ pnpm prisma:validate
 pnpm openapi:check
 pnpm build
 pnpm smoke:production
+pnpm spring-boot:verify
 ```
 
 La base E2E es exclusiva y usa PostgreSQL 17 en `127.0.0.1:55434`:
@@ -116,4 +141,15 @@ pnpm db:test:status
 pnpm db:test:down
 ```
 
-Continúan fuera de alcance la integración funcional Socket.IO del frontend, verificación de correo, invitaciones, OAuth, recuperación de contraseña, escalado horizontal de colaboración, IA, importación/exportación y generación Spring Boot.
+La verificación runtime se mantiene separada de `pnpm verify` porque requiere Docker, PostgreSQL 17 y JDK 21 local. Crea un contenedor etiquetado y con nombre único, publica PostgreSQL y Tomcat en puertos efímeros de `127.0.0.1`, elimina temporales y no toca recursos externos. El puerto `55435` se reserva únicamente para simular el fallo controlado de puerto ocupado. El fixture puede cambiarse para repetir la matriz de UUID, tipos avanzados y relaciones:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\Java\jdk-21'
+pnpm spring-boot:runtime
+$env:SPRING_BOOT_RUNTIME_FIXTURE='06-uuid-pgcrypto.json'; pnpm spring-boot:runtime
+$env:SPRING_BOOT_RUNTIME_FIXTURE='07-json-and-advanced-types.json'; pnpm spring-boot:runtime
+$env:SPRING_BOOT_RUNTIME_FIXTURE='08-self-reference.json'; pnpm spring-boot:runtime
+pnpm spring-boot:runtime:failures
+```
+
+Continúan fuera de alcance la interfaz de descarga en frontend, invitaciones, OAuth, recuperación de contraseña, escalado horizontal de colaboración, IA, importación XMI y despliegue cloud.

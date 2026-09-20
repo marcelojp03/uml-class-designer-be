@@ -12,6 +12,10 @@ import type { AppConfiguration } from './config/app.config';
 import { ConfiguredSocketIoAdapter } from './modules/uml-domain/configured-socket-io.adapter';
 
 const CANONICAL_SCHEMA_COMPONENT = 'CanonicalUmlModel';
+const CLOSED_REQUEST_SCHEMA_COMPONENTS = new Set([
+  'ExportSpringBootDto',
+  'SpringBootExportOptionsDto',
+]);
 
 function toOpenApiSchema(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -66,6 +70,19 @@ function addCanonicalSchemaComponents(document: ReturnType<typeof SwaggerModule.
   }
 }
 
+function closeStrictRequestSchemaComponents(
+  document: ReturnType<typeof SwaggerModule.createDocument>,
+) {
+  const schemas = document.components?.schemas as
+    | Record<string, Record<string, unknown>>
+    | undefined;
+  if (!schemas) return;
+  for (const name of CLOSED_REQUEST_SCHEMA_COMPONENTS) {
+    const schema = schemas[name];
+    if (schema) schema.additionalProperties = false;
+  }
+}
+
 export async function createConfiguredApp() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
@@ -109,6 +126,7 @@ export async function createConfiguredApp() {
     .build();
   const openApiDocument = SwaggerModule.createDocument(app, swaggerConfig);
   addCanonicalSchemaComponents(openApiDocument);
+  closeStrictRequestSchemaComponents(openApiDocument);
   SwaggerModule.setup('docs', app, openApiDocument, {
     jsonDocumentUrl: 'docs/openapi.json',
   });

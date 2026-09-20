@@ -12,6 +12,8 @@ import { DocumentCollaborationEventBus } from './document-collaboration-event-bu
 import { DocumentMutationQueueService } from './document-mutation-queue.service';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
+import { SpringBootExportQuotaService } from './spring-boot-export-quota.service';
+import { SpringBootExportService } from './spring-boot-export.service';
 import { UmlCommandExecutor } from './uml-command.executor';
 
 @Module({
@@ -29,6 +31,8 @@ import { UmlCommandExecutor } from './uml-command.executor';
     CollaborationRateLimiterService,
     DocumentCommandService,
     CollaborationGateway,
+    SpringBootExportQuotaService,
+    SpringBootExportService,
   ],
 })
 export class UmlDomainModule {}
