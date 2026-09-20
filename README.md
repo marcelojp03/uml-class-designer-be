@@ -150,6 +150,9 @@ $env:SPRING_BOOT_RUNTIME_FIXTURE='06-uuid-pgcrypto.json'; pnpm spring-boot:runti
 $env:SPRING_BOOT_RUNTIME_FIXTURE='07-json-and-advanced-types.json'; pnpm spring-boot:runtime
 $env:SPRING_BOOT_RUNTIME_FIXTURE='08-self-reference.json'; pnpm spring-boot:runtime
 pnpm spring-boot:runtime:failures
+pnpm package:6a3
 ```
+
+`pnpm package:6a3` crea los cuatro ZIP de entrega y su manifiesto SHA-256 en `../entregables/6A3`. El empaquetador usa fecha/modo fijos, comentario EOCD trazable y valida paths, duplicados, `.env`, artefactos de build y ZIPs anidados.
 
 Continúan fuera de alcance la interfaz de descarga en frontend, invitaciones, OAuth, recuperación de contraseña, escalado horizontal de colaboración, IA, importación XMI y despliegue cloud.
