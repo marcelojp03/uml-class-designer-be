@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import {
+  assertTrackedBackendPath,
   assertZip,
   collectTrackedBackendEntries,
   createZip,
@@ -46,6 +47,15 @@ describe('6A.3 delivery packaging', () => {
     await git(root, ['commit', '-m', 'track native binary']);
     await expect(collectTrackedBackendEntries(root)).rejects.toThrow(
       'Native or Prisma engine binaries',
+    );
+  });
+
+  it('rejects case variants of excluded generated and dependency paths', () => {
+    expect(() => assertTrackedBackendPath('SRC/GENERATED/PRISMA/client.ts')).toThrow(
+      'Generated Prisma output',
+    );
+    expect(() => assertTrackedBackendPath('NODE_MODULES/package/index.js')).toThrow(
+      'Forbidden delivery ZIP path',
     );
   });
 

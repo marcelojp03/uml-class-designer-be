@@ -506,6 +506,12 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
         .set(bearer(owner))
         .send({ userId: outsider.id, email: outsider.email, role: ProjectRole.OWNER })
         .expect(400);
+
+      await api()
+        .post(`/projects/${projectId}/members`)
+        .set(bearer(owner))
+        .send({ userId: outsider.id, email: outsider.email, role: null })
+        .expect(400);
     });
 
     it('prevents EDITOR from administering members or the project', async () => {

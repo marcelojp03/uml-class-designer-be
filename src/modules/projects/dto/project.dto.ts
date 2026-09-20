@@ -1,7 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ProjectRole } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEmail,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -15,6 +17,8 @@ const trimText = ({ value }: { value: unknown }): unknown =>
 
 const normalizeEmail = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
+
+const ASSIGNABLE_PROJECT_ROLES = [ProjectRole.EDITOR] as const;
 
 export class CreateProjectDto {
   @ApiProperty({ minLength: 1, maxLength: 160, example: 'Sistema de ventas' })
@@ -59,4 +63,13 @@ export class AddProjectMemberDto {
   @IsEmail()
   @MaxLength(254)
   email!: string;
+
+  @ApiPropertyOptional({
+    enum: ASSIGNABLE_PROJECT_ROLES,
+    default: ProjectRole.EDITOR,
+    description: 'Los colaboradores solo pueden ser EDITOR.',
+  })
+  @ValidateIf((_, value: unknown) => value !== undefined)
+  @IsIn(ASSIGNABLE_PROJECT_ROLES)
+  role?: 'EDITOR';
 }

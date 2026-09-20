@@ -22,15 +22,13 @@ const ZIP_ENTRY_MODE = 0o100644;
 const DELIVERY_DATE = '2026-09-20';
 const ZIP_EOCD_SIGNATURE = 0x06054b50;
 const ZIP_CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
-const EXCLUDED_SEGMENTS = new Set([
-  '.git',
-  '.pnpm-store',
-  'coverage',
-  'dist',
-  'node_modules',
-  'target',
-]);
+const EXCLUDED_SEGMENTS = new Set(
+  ['.git', '.pnpm-store', 'coverage', 'dist', 'node_modules', 'target'].map((segment) =>
+    segment.toLowerCase(),
+  ),
+);
 const PRISMA_GENERATED_ROOT = 'src/generated/prisma';
+const PRISMA_GENERATED_ROOT_LOWER = PRISMA_GENERATED_ROOT.toLowerCase();
 const FORBIDDEN_BACKEND_EXTENSIONS = new Set(['.dll', '.node', '.wasm']);
 
 export interface ArchiveEntry {
@@ -267,9 +265,13 @@ async function trackedRegularFilePath(root: string, relativePath: string): Promi
   return currentPath;
 }
 
-function assertTrackedBackendPath(path: string): void {
+export function assertTrackedBackendPath(path: string): void {
   assertDeliveryPath(path);
-  if (path === PRISMA_GENERATED_ROOT || path.startsWith(`${PRISMA_GENERATED_ROOT}/`)) {
+  const lowerPath = path.toLowerCase();
+  if (
+    lowerPath === PRISMA_GENERATED_ROOT_LOWER ||
+    lowerPath.startsWith(`${PRISMA_GENERATED_ROOT_LOWER}/`)
+  ) {
     throw new Error(`Generated Prisma output cannot be packaged: ${path}`);
   }
   const name = basename(path).toLowerCase();
@@ -332,7 +334,7 @@ function excludeEvidencePath(path: string, isDirectory: boolean): boolean {
 
 function excludeCommonPath(path: string, isDirectory: boolean): boolean {
   const segments = path.split('/');
-  if (segments.some((segment) => EXCLUDED_SEGMENTS.has(segment))) return true;
+  if (segments.some((segment) => EXCLUDED_SEGMENTS.has(segment.toLowerCase()))) return true;
   const name = basename(path).toLowerCase();
   if (name.endsWith('.zip') || name.endsWith('.log')) return true;
   if (
@@ -466,7 +468,7 @@ function assertDeliveryPath(path: string): void {
         !segment ||
         segment === '.' ||
         segment === '..' ||
-        EXCLUDED_SEGMENTS.has(segment) ||
+        EXCLUDED_SEGMENTS.has(lower) ||
         lower === '.env' ||
         (lower.startsWith('.env.') && lower !== '.env.example' && lower !== '.env.test.example')
       );

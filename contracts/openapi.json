@@ -1131,6 +1131,14 @@
             "type": "string",
             "format": "email",
             "example": "editor@example.com"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "EDITOR"
+            ],
+            "default": "EDITOR",
+            "description": "Los colaboradores solo pueden ser EDITOR."
           }
         },
         "required": [

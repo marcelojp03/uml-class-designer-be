@@ -672,12 +672,22 @@ async function runCommand(
     },
   );
   let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    void terminateProcessTree(child);
-  }, timeoutMs);
+  let timeout: NodeJS.Timeout | undefined;
+  let termination: Promise<void> | undefined;
+  const timeoutResult = new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
+    (resolveTimeout, rejectTimeout) => {
+      timeout = setTimeout(() => {
+        timedOut = true;
+        termination = terminateProcessTree(child);
+        void termination
+          .then(() => resolveTimeout({ exitCode: null, signal: null }))
+          .catch(rejectTimeout);
+      }, timeoutMs);
+    },
+  );
   try {
-    const result = await completed;
+    const result = await Promise.race([completed, timeoutResult]);
+    if (timedOut && termination) await termination;
     return {
       command,
       args,
@@ -688,10 +698,8 @@ async function runCommand(
       timedOut,
     };
   } finally {
-    clearTimeout(timeout);
-    if (timedOut) {
-      await terminateProcessTree(child).catch(() => undefined);
-    }
+    if (timeout) clearTimeout(timeout);
+    if (termination) await termination;
     if (activeChild === child) {
       activeChild = undefined;
     }
