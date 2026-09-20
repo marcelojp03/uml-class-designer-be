@@ -76,6 +76,7 @@ export interface RelationalTable {
   physicalName: string;
   javaEntityName: string;
   kind: RelationalTableKind;
+  isAbstract?: boolean;
   sourceClassifierId?: string;
   sourceRelationshipId?: string;
   columns: RelationalColumn[];

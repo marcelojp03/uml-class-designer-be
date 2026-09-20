@@ -1167,6 +1167,26 @@ describe('relational model transformer', () => {
     ).toBeUndefined();
   });
 
+  it('25.1 preserves abstract flags on entity and association-class tables', () => {
+    const result = generateRelationalModel(
+      model(
+        [
+          classifier('aa', 'Order'),
+          classifier('bb', 'Product'),
+          classifier('cc', 'OrderLine', [], { isAbstract: true }),
+        ],
+        [
+          relationship('r1', 'aa', 'bb', '0..*', '0..*', {
+            associationClassId: 'cc',
+          }),
+        ],
+      ),
+    );
+
+    expect(table(result, 'aa').isAbstract).toBe(false);
+    expect(table(result, 'cc').isAbstract).toBe(true);
+  });
+
   it('25a. adopts an explicit Long parent identifier for a synthetic child', () => {
     const result = generateRelationalModel(
       model(

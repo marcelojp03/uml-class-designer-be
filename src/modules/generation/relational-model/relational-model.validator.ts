@@ -3,6 +3,26 @@ import type { ErrorObject, ValidateFunction } from 'ajv';
 import { relationalModelSchema } from './relational-model.schema';
 import type { RelationalModel } from './relational-model.types';
 
+const JAVA_TYPES_BY_POSTGRES_TYPE: Readonly<Record<string, readonly string[]>> = {
+  'varchar(255)': ['String'],
+  text: ['String'],
+  char: ['Character', 'String'],
+  boolean: ['Boolean'],
+  smallint: ['Byte', 'Short'],
+  integer: ['Integer'],
+  bigint: ['Long'],
+  real: ['Float'],
+  'double precision': ['Double'],
+  'numeric(19,2)': ['BigDecimal'],
+  'numeric(38,0)': ['BigInteger'],
+  date: ['LocalDate'],
+  'timestamp(3)': ['LocalDateTime'],
+  'timestamptz(3)': ['Instant'],
+  uuid: ['UUID'],
+  bytea: ['byte[]'],
+  jsonb: ['JsonNode'],
+};
+
 export interface RelationalContractValidationIssue {
   path: string;
   keyword: string;
@@ -37,6 +57,7 @@ function validateRelationalModelSemantics(
   const tablesById = new Map<string, RelationalModel['tables'][number]>();
   const tableNames = new Set<string>();
   const entityNames = new Set<string>();
+  const relationNames = new Set<string>();
 
   for (const [tableIndex, table] of model.tables.entries()) {
     const tablePath = `/tables/${tableIndex}`;
@@ -53,6 +74,7 @@ function validateRelationalModelSemantics(
       );
     }
     tableNames.add(table.physicalName);
+    relationNames.add(table.physicalName);
     if (entityNames.has(table.javaEntityName)) {
       issues.push(
         semanticIssue(
@@ -70,13 +92,25 @@ function validateRelationalModelSemantics(
     const physicalColumns = new Set<string>();
     const javaProperties = new Set<string>();
     const constraintNames = new Set<string>();
+    const uniqueConstraintIds = new Set<string>();
+    const foreignKeyIds = new Set<string>();
     const registerConstraintName = (name: string, path: string): void => {
       if (constraintNames.has(name)) {
         issues.push(semanticIssue(path, `duplicates constraint name ${name}.`));
       }
       constraintNames.add(name);
     };
+    const registerIndexBackedConstraintName = (name: string, path: string): void => {
+      if (relationNames.has(name)) {
+        issues.push(semanticIssue(path, `duplicates schema-wide relation name ${name}.`));
+      }
+      relationNames.add(name);
+    };
     registerConstraintName(table.primaryKey.physicalName, `${tablePath}/primaryKey/physicalName`);
+    registerIndexBackedConstraintName(
+      table.primaryKey.physicalName,
+      `${tablePath}/primaryKey/physicalName`,
+    );
     for (const [columnIndex, column] of table.columns.entries()) {
       const columnPath = `${tablePath}/columns/${columnIndex}`;
       if (columnsById.has(column.id)) {
@@ -103,6 +137,20 @@ function validateRelationalModelSemantics(
         );
       }
       javaProperties.add(column.javaPropertyName);
+      const isForeignKeyColumn = table.foreignKeys.some((foreignKey) =>
+        foreignKey.columnIds.includes(column.id),
+      );
+      if (
+        !isForeignKeyColumn &&
+        !JAVA_TYPES_BY_POSTGRES_TYPE[column.postgresType]?.includes(column.javaType)
+      ) {
+        issues.push(
+          semanticIssue(
+            `${columnPath}/javaType`,
+            `Java type ${column.javaType} is not compatible with PostgreSQL type ${column.postgresType}.`,
+          ),
+        );
+      }
     }
 
     for (const [columnIndex, columnId] of table.primaryKey.columnIds.entries()) {
@@ -130,9 +178,33 @@ function validateRelationalModelSemantics(
         );
       }
     }
+    const declaredPrimaryKeyColumns = new Set(table.primaryKey.columnIds);
+    for (const [columnIndex, column] of table.columns.entries()) {
+      if (column.primaryKey && !declaredPrimaryKeyColumns.has(column.id)) {
+        issues.push(
+          semanticIssue(
+            `${tablePath}/columns/${columnIndex}/primaryKey`,
+            'primaryKey columns must be declared by the table primary key.',
+          ),
+        );
+      }
+    }
 
     for (const [uniqueIndex, constraint] of table.uniqueConstraints.entries()) {
+      if (uniqueConstraintIds.has(constraint.id)) {
+        issues.push(
+          semanticIssue(
+            `${tablePath}/uniqueConstraints/${uniqueIndex}/id`,
+            `duplicates unique constraint identifier ${constraint.id}.`,
+          ),
+        );
+      }
+      uniqueConstraintIds.add(constraint.id);
       registerConstraintName(
+        constraint.physicalName,
+        `${tablePath}/uniqueConstraints/${uniqueIndex}/physicalName`,
+      );
+      registerIndexBackedConstraintName(
         constraint.physicalName,
         `${tablePath}/uniqueConstraints/${uniqueIndex}/physicalName`,
       );
@@ -150,6 +222,15 @@ function validateRelationalModelSemantics(
 
     for (const [foreignKeyIndex, foreignKey] of table.foreignKeys.entries()) {
       const foreignKeyPath = `${tablePath}/foreignKeys/${foreignKeyIndex}`;
+      if (foreignKeyIds.has(foreignKey.id)) {
+        issues.push(
+          semanticIssue(
+            `${foreignKeyPath}/id`,
+            `duplicates foreign-key identifier ${foreignKey.id}.`,
+          ),
+        );
+      }
+      foreignKeyIds.add(foreignKey.id);
       registerConstraintName(foreignKey.physicalName, `${foreignKeyPath}/physicalName`);
       const localColumns = foreignKey.columnIds.map((columnId) => columnsById.get(columnId));
       for (const [columnIndex, columnId] of foreignKey.columnIds.entries()) {
@@ -275,18 +356,32 @@ function validateRelationalModelSemantics(
               );
             }
           }
-          const joinedForeignKey = table.foreignKeys.find(
+          if (!sameIds(inheritance.parentColumnIds, parentTable.primaryKey.columnIds)) {
+            issues.push(
+              semanticIssue(
+                `${tablePath}/inheritance/parentColumnIds`,
+                `must reference the primary key of ${parentTable.physicalName}.`,
+              ),
+            );
+          }
+          const inheritanceIssue = inheritanceChainIssue(table, tablesById);
+          if (inheritanceIssue) {
+            issues.push(semanticIssue(`${tablePath}/inheritance`, inheritanceIssue));
+          }
+          const joinedForeignKeys = table.foreignKeys.filter(
             (foreignKey) =>
               foreignKey.referencedTableId === parentTable.id &&
               foreignKey.onDelete === 'CASCADE' &&
               sameIds(foreignKey.columnIds, table.primaryKey.columnIds) &&
               sameIds(foreignKey.referencedColumnIds, inheritance.parentColumnIds!),
           );
-          if (!joinedForeignKey) {
+          if (joinedForeignKeys.length !== 1) {
             issues.push(
               semanticIssue(
                 `${tablePath}/inheritance`,
-                'subclass inheritance requires a cascading primary-key foreign key to its parent.',
+                joinedForeignKeys.length === 0
+                  ? 'subclass inheritance requires a cascading primary-key foreign key to its parent.'
+                  : 'subclass inheritance requires exactly one cascading primary-key foreign key to its parent.',
               ),
             );
           }
@@ -318,6 +413,30 @@ function isDeclaredKey(table: RelationalModel['tables'][number], columnIds: stri
     sameIds(columnIds, table.primaryKey.columnIds) ||
     table.uniqueConstraints.some((constraint) => sameIds(columnIds, constraint.columnIds))
   );
+}
+
+function inheritanceChainIssue(
+  table: RelationalModel['tables'][number],
+  tablesById: Map<string, RelationalModel['tables'][number]>,
+): string | undefined {
+  const seen = new Set<string>([table.id]);
+  let current = table;
+  while (current.inheritance?.role === 'subclass') {
+    const parentId = current.inheritance.parentTableId;
+    if (!parentId) return undefined;
+    const parent = tablesById.get(parentId);
+    if (!parent) return undefined;
+    if (seen.has(parent.id)) {
+      return `inheritance chain contains a cycle at ${parent.id}.`;
+    }
+    seen.add(parent.id);
+    if (parent.inheritance?.role === 'root') return undefined;
+    if (parent.inheritance?.role !== 'subclass') {
+      return 'inheritance chain must terminate at a table with inheritance role root.';
+    }
+    current = parent;
+  }
+  return 'inheritance chain must terminate at a table with inheritance role root.';
 }
 
 function toValidationIssue(error: ErrorObject): RelationalContractValidationIssue {

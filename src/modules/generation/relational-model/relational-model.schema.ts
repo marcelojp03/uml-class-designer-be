@@ -226,6 +226,7 @@ export const relationalModelSchema: AnySchema = {
         physicalName: { $ref: '#/$defs/physicalName' },
         javaEntityName: { type: 'string', pattern: '^[A-Z][A-Za-z0-9_$]{0,159}$' },
         kind: { enum: ['entity', 'join', 'association-class', 'collection'] },
+        isAbstract: { type: 'boolean' },
         sourceClassifierId: { type: 'string', minLength: 1, maxLength: 160 },
         sourceRelationshipId: { type: 'string', minLength: 1, maxLength: 160 },
         columns: { type: 'array', items: { $ref: '#/$defs/column' } },
