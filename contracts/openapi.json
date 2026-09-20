@@ -463,7 +463,7 @@
             "access-token": []
           }
         ],
-        "summary": "Agrega un EDITOR o VIEWER mediante correo e ID confirmados",
+        "summary": "Agrega como EDITOR una cuenta confirmada por correo e ID",
         "tags": [
           "project-members"
         ]
@@ -867,9 +867,6 @@
           "400": {
             "description": "Snapshot persistido u opciones de exportacion invalidos."
           },
-          "403": {
-            "description": "Un VIEWER no puede exportar."
-          },
           "404": {
             "description": "Proyecto o documento inexistente, eliminado o inaccesible."
           },
@@ -1034,8 +1031,7 @@
             "type": "string",
             "enum": [
               "OWNER",
-              "EDITOR",
-              "VIEWER"
+              "EDITOR"
             ]
           },
           "createdAt": {
@@ -1107,8 +1103,7 @@
             "type": "string",
             "enum": [
               "OWNER",
-              "EDITOR",
-              "VIEWER"
+              "EDITOR"
             ]
           },
           "createdAt": {
@@ -1136,15 +1131,6 @@
             "type": "string",
             "format": "email",
             "example": "editor@example.com"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "EDITOR",
-              "VIEWER"
-            ],
-            "default": "EDITOR",
-            "description": "Solo se pueden asignar roles EDITOR o VIEWER; OWNER se crea con el proyecto."
           }
         },
         "required": [

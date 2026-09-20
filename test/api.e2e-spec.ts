@@ -820,7 +820,7 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
         );
       });
 
-      it('requires current revision and exporter membership while denying VIEWER exports', async () => {
+      it('requires current revision, exporter membership, and project-scoped documents', async () => {
         const persisted = await prisma.umlDocument.findUniqueOrThrow({
           where: { id: documentId },
           select: { revision: true },
@@ -851,18 +851,6 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
           .set(bearer(outsider))
           .send({ expectedRevision: persisted.revision })
           .expect(404);
-
-        const viewer = await register('viewer.export@example.com', 'Export Viewer');
-        await api()
-          .post(`/projects/${projectId}/members`)
-          .set(bearer(owner))
-          .send({ userId: viewer.id, email: viewer.email, role: ProjectRole.VIEWER })
-          .expect(201);
-        await api()
-          .post(exportPath)
-          .set(bearer(viewer))
-          .send({ expectedRevision: persisted.revision })
-          .expect(403);
 
         await api()
           .post(`/projects/${otherProjectId}/documents/${documentId}/exports/spring-boot`)

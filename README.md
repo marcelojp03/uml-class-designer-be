@@ -34,7 +34,7 @@ Las variables críticas `NODE_ENV`, `DATABASE_URL` y `AUTH_JWT_SECRET` son oblig
 
 ## Proyectos y documentos
 
-`ProjectRole` contiene `OWNER`, `EDITOR` y `VIEWER`. El propietario administra el proyecto y sus miembros; OWNER y EDITOR pueden mutar y exportar documentos UML. VIEWER puede consultar recursos permitidos, pero no puede mutar, colaborar ni exportar. Un usuario sin membresía recibe 404 para recursos ajenos.
+`ProjectRole` contiene exclusivamente `OWNER` y `EDITOR`. El propietario administra el proyecto y sus miembros; ambos roles pueden mutar y exportar documentos UML. Un usuario sin membresía recibe 404 para recursos ajenos.
 
 El alta de un editor exige correo normalizado y el UUID de cuenta compartido por el propio usuario. No se implementan invitaciones ni verificación de correo en este incremento.
 
@@ -42,7 +42,7 @@ Cada documento conserva el modelo canónico `0.1.0`, revisión actual y snapshot
 
 ## Exportación Spring Boot
 
-`POST /projects/:projectId/documents/:documentId/exports/spring-boot` requiere Bearer token y un cuerpo con `expectedRevision` y, opcionalmente, `groupId`, `artifactId`, `packageName` y `applicationName`. Solo OWNER y EDITOR exportan; VIEWER recibe 403 y quien no pertenece al proyecto recibe 404. El servicio vuelve a consultar el documento con alcance actor/proyecto, por lo que un `projectId`/`documentId` cruzado tampoco revela información.
+`POST /projects/:projectId/documents/:documentId/exports/spring-boot` requiere Bearer token y un cuerpo con `expectedRevision` y, opcionalmente, `groupId`, `artifactId`, `packageName` y `applicationName`. OWNER y EDITOR exportan; quien no pertenece al proyecto recibe 404. El servicio vuelve a consultar el documento con alcance actor/proyecto, por lo que un `projectId`/`documentId` cruzado tampoco revela información.
 
 La exportación usa exclusivamente el snapshot canónico persistido: valida el snapshot, obtiene `RelationalModel 0.1.0`, reutiliza el generador puro y devuelve un ZIP binario determinista. No modifica el documento ni su revisión. Una revisión distinta devuelve `409 application/json` con `currentRevision`; snapshot u opciones inválidas devuelven 400. La respuesta ZIP incluye `Content-Disposition` saneado, `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `X-Document-Revision` y `X-Generator-Version`.
 
@@ -115,7 +115,7 @@ COLLABORATION_OPERATION_RECOVERY_INTERVAL_MS=1000
 COLLABORATION_OPERATION_RECOVERY_BATCH_SIZE=100
 ```
 
-La migración `20260908120000_add_document_operations` agrega el registro idempotente por `(documentId, operationId)`, índices de revisión y referencias a documento/actor. `20260908130000_add_document_operation_delivery` añade `broadcastedAt` y marca las operaciones históricas como ya entregadas. `20260908140000_add_document_operation_recovery_index` añade el índice parcial de operaciones aún pendientes de difusión. `20260908150000_add_auth_session_refresh_sequence` añade la secuencia de refresh. `20260914120000_correct_document_operation_broadcasted_at` convierte `broadcastedAt` a `TIMESTAMPTZ(3)` con `USING ... AT TIME ZONE 'UTC'`, determinista ante cualquier zona de sesión. `20260920120000_add_project_viewer_role` añade `VIEWER`. Aplique siempre `pnpm exec prisma migrate deploy`; no use `db push`.
+La migración `20260908120000_add_document_operations` agrega el registro idempotente por `(documentId, operationId)`, índices de revisión y referencias a documento/actor. `20260908130000_add_document_operation_delivery` añade `broadcastedAt` y marca las operaciones históricas como ya entregadas. `20260908140000_add_document_operation_recovery_index` añade el índice parcial de operaciones aún pendientes de difusión. `20260908150000_add_auth_session_refresh_sequence` añade la secuencia de refresh. `20260914120000_correct_document_operation_broadcasted_at` convierte `broadcastedAt` a `TIMESTAMPTZ(3)` con `USING ... AT TIME ZONE 'UTC'`, determinista ante cualquier zona de sesión. Aplique siempre `pnpm exec prisma migrate deploy`; no use `db push`.
 
 ## Verificación
 

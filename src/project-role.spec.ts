@@ -18,15 +18,7 @@ function loadProjectRoles(): string[] {
 }
 
 describe('ProjectRole Prisma enum', () => {
-  it.each(['OWNER', 'EDITOR', 'VIEWER'])('accepts %s', (role) => {
-    expect(loadProjectRoles()).toContain(role);
-  });
-
   it('defines only the supported project roles', () => {
-    expect(loadProjectRoles()).toEqual(['OWNER', 'EDITOR', 'VIEWER']);
-  });
-
-  it.each(['ADMIN', 'GUEST'])('does not expose unsupported role %s', (role) => {
-    expect(loadProjectRoles()).not.toContain(role);
+    expect(loadProjectRoles()).toEqual(['OWNER', 'EDITOR']);
   });
 });

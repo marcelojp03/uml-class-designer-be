@@ -18,7 +18,6 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
-  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -120,7 +119,6 @@ export class DocumentsController {
       },
     },
   })
-  @ApiForbiddenResponse({ description: 'Un VIEWER no puede exportar.' })
   @ApiNotFoundResponse({
     description: 'Proyecto o documento inexistente, eliminado o inaccesible.',
   })
