@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSchemaVersion": "0.1.0",
+  "project": { "id": "project_association_class", "name": "Association Class" },
+  "conventions": {
+    "naming": "snake_case",
+    "identifierMaxLength": 63,
+    "inheritanceStrategy": "JOINED",
+    "identifierStrategy": "attribute-id-or-synthetic-uuid"
+  },
+  "tables": [
+    {
+      "id": "table_course",
+      "logicalName": "Course",
+      "physicalName": "course",
+      "javaEntityName": "Course",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_course_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_course",
+        "physicalName": "pk_course",
+        "columnIds": ["column_course_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    },
+    {
+      "id": "table_student",
+      "logicalName": "Student",
+      "physicalName": "student",
+      "javaEntityName": "Student",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_student_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_student",
+        "physicalName": "pk_student",
+        "columnIds": ["column_student_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    },
+    {
+      "id": "table_enrollment",
+      "logicalName": "Enrollment",
+      "physicalName": "enrollment",
+      "javaEntityName": "Enrollment",
+      "kind": "association-class",
+      "columns": [
+        {
+          "id": "column_enrollment_student_id",
+          "logicalName": "studentId",
+          "physicalName": "student_id",
+          "javaPropertyName": "studentId",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_enrollment_course_id",
+          "logicalName": "courseId",
+          "physicalName": "course_id",
+          "javaPropertyName": "courseId",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_enrollment_enrolled_at",
+          "logicalName": "enrolledAt",
+          "physicalName": "enrolled_at",
+          "javaPropertyName": "enrolledAt",
+          "javaType": "LocalDate",
+          "postgresType": "date",
+          "umlType": "LocalDate",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_enrollment",
+        "physicalName": "pk_enrollment",
+        "columnIds": ["column_enrollment_student_id", "column_enrollment_course_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [
+        {
+          "id": "fk_enrollment_student",
+          "physicalName": "fk_enrollment_student",
+          "columnIds": ["column_enrollment_student_id"],
+          "referencedTableId": "table_student",
+          "referencedColumnIds": ["column_student_id"],
+          "onDelete": "NO_ACTION",
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "fk_enrollment_course",
+          "physicalName": "fk_enrollment_course",
+          "columnIds": ["column_enrollment_course_id"],
+          "referencedTableId": "table_course",
+          "referencedColumnIds": ["column_course_id"],
+          "onDelete": "NO_ACTION",
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    }
+  ],
+  "diagnostics": []
+}

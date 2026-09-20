@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSchemaVersion": "0.1.0",
+  "project": { "id": "project_composite_pk", "name": "Composite Primary Key" },
+  "conventions": {
+    "naming": "snake_case",
+    "identifierMaxLength": 63,
+    "inheritanceStrategy": "JOINED",
+    "identifierStrategy": "attribute-id-or-synthetic-uuid"
+  },
+  "tables": [
+    {
+      "id": "table_subscription",
+      "logicalName": "Subscription",
+      "physicalName": "subscription",
+      "javaEntityName": "Subscription",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_subscription_account_id",
+          "logicalName": "accountId",
+          "physicalName": "account_id",
+          "javaPropertyName": "accountId",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_subscription_plan_code",
+          "logicalName": "planCode",
+          "physicalName": "plan_code",
+          "javaPropertyName": "planCode",
+          "javaType": "String",
+          "postgresType": "char",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_subscription_label",
+          "logicalName": "label",
+          "physicalName": "label",
+          "javaPropertyName": "label",
+          "javaType": "String",
+          "postgresType": "varchar(255)",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_subscription",
+        "physicalName": "pk_subscription",
+        "columnIds": ["column_subscription_account_id", "column_subscription_plan_code"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    }
+  ],
+  "diagnostics": []
+}

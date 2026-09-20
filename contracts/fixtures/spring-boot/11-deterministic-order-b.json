@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSchemaVersion": "0.1.0",
+  "project": { "id": "project_deterministic", "name": "Deterministic Order" },
+  "conventions": {
+    "naming": "snake_case",
+    "identifierMaxLength": 63,
+    "inheritanceStrategy": "JOINED",
+    "identifierStrategy": "attribute-id-or-synthetic-uuid"
+  },
+  "tables": [
+    {
+      "id": "table_post",
+      "logicalName": "Post",
+      "physicalName": "post",
+      "javaEntityName": "Post",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_post_title",
+          "logicalName": "title",
+          "physicalName": "title",
+          "javaPropertyName": "title",
+          "javaType": "String",
+          "postgresType": "varchar(255)",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_post_author_id",
+          "logicalName": "authorId",
+          "physicalName": "author_id",
+          "javaPropertyName": "authorId",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_post_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_post",
+        "physicalName": "pk_post",
+        "columnIds": ["column_post_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [
+        {
+          "id": "fk_post_author",
+          "physicalName": "fk_post_author",
+          "columnIds": ["column_post_author_id"],
+          "referencedTableId": "table_author",
+          "referencedColumnIds": ["column_author_id"],
+          "onDelete": "NO_ACTION",
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    },
+    {
+      "id": "table_author",
+      "logicalName": "Author",
+      "physicalName": "author",
+      "javaEntityName": "Author",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_author_name",
+          "logicalName": "name",
+          "physicalName": "name",
+          "javaPropertyName": "name",
+          "javaType": "String",
+          "postgresType": "varchar(255)",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_author_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_author",
+        "physicalName": "pk_author",
+        "columnIds": ["column_author_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    }
+  ],
+  "diagnostics": []
+}

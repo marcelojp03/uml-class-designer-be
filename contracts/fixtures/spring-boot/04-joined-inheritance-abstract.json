@@ -1,0 +1,173 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSchemaVersion": "0.1.0",
+  "project": { "id": "project_joined", "name": "Joined Inheritance" },
+  "conventions": {
+    "naming": "snake_case",
+    "identifierMaxLength": 63,
+    "inheritanceStrategy": "JOINED",
+    "identifierStrategy": "attribute-id-or-synthetic-uuid"
+  },
+  "tables": [
+    {
+      "id": "table_company",
+      "logicalName": "Company",
+      "physicalName": "company",
+      "javaEntityName": "Company",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_company_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_company",
+        "physicalName": "pk_company",
+        "columnIds": ["column_company_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    },
+    {
+      "id": "table_person",
+      "logicalName": "Person",
+      "physicalName": "person",
+      "javaEntityName": "Person",
+      "kind": "entity",
+      "isAbstract": true,
+      "columns": [
+        {
+          "id": "column_person_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_person_name",
+          "logicalName": "name",
+          "physicalName": "name",
+          "javaPropertyName": "name",
+          "javaType": "String",
+          "postgresType": "varchar(255)",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_person_company_id",
+          "logicalName": "companyId",
+          "physicalName": "company_id",
+          "javaPropertyName": "companyId",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_person",
+        "physicalName": "pk_person",
+        "columnIds": ["column_person_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [
+        {
+          "id": "fk_person_company",
+          "physicalName": "fk_person_company",
+          "columnIds": ["column_person_company_id"],
+          "referencedTableId": "table_company",
+          "referencedColumnIds": ["column_company_id"],
+          "onDelete": "NO_ACTION",
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "uniqueConstraints": [],
+      "inheritance": {
+        "strategy": "JOINED",
+        "role": "root",
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    },
+    {
+      "id": "table_employee",
+      "logicalName": "Employee",
+      "physicalName": "employee",
+      "javaEntityName": "Employee",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_employee_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_employee_department",
+          "logicalName": "department",
+          "physicalName": "department",
+          "javaPropertyName": "department",
+          "javaType": "String",
+          "postgresType": "varchar(255)",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_employee",
+        "physicalName": "pk_employee",
+        "columnIds": ["column_employee_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [
+        {
+          "id": "fk_employee_person",
+          "physicalName": "fk_employee_person",
+          "columnIds": ["column_employee_id"],
+          "referencedTableId": "table_person",
+          "referencedColumnIds": ["column_person_id"],
+          "onDelete": "CASCADE",
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "uniqueConstraints": [],
+      "inheritance": {
+        "strategy": "JOINED",
+        "role": "subclass",
+        "parentTableId": "table_person",
+        "parentColumnIds": ["column_person_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    }
+  ],
+  "diagnostics": []
+}

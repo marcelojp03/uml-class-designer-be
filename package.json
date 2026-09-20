@@ -15,6 +15,7 @@
     "test": "jest --runInBand",
     "test:e2e": "pnpm db:test:migrate && node --env-file=.env.test.example node_modules/jest/bin/jest.js --config test/jest-e2e.json --runInBand",
     "contracts:test": "jest contracts --runInBand",
+    "spring-boot:verify": "node -r ts-node/register scripts/verify-spring-boot-generation.ts",
     "openapi:generate": "node --env-file=.env.example -r ts-node/register scripts/generate-openapi.ts",
     "openapi:check": "node --env-file=.env.example -r ts-node/register scripts/generate-openapi.ts --check",
     "prisma:generate": "prisma generate",
@@ -24,7 +25,7 @@
     "db:test:migrate": "node --env-file=.env.test.example node_modules/prisma/build/index.js migrate deploy",
     "db:test:status": "node --env-file=.env.test.example node_modules/prisma/build/index.js migrate status",
     "smoke:production": "node --env-file=.env.test.example -r ts-node/register scripts/production-smoke.ts",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm prisma:validate && pnpm openapi:check && pnpm build"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e && pnpm spring-boot:verify && pnpm prisma:validate && pnpm openapi:check && pnpm build"
   },
   "dependencies": {
     "@nestjs/common": "11.1.16",

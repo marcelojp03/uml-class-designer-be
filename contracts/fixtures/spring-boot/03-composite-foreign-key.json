@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSchemaVersion": "0.1.0",
+  "project": { "id": "project_composite_fk", "name": "Composite Foreign Key" },
+  "conventions": {
+    "naming": "snake_case",
+    "identifierMaxLength": 63,
+    "inheritanceStrategy": "JOINED",
+    "identifierStrategy": "attribute-id-or-synthetic-uuid"
+  },
+  "tables": [
+    {
+      "id": "table_warehouse",
+      "logicalName": "Warehouse",
+      "physicalName": "warehouse",
+      "javaEntityName": "Warehouse",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_warehouse_country_code",
+          "logicalName": "countryCode",
+          "physicalName": "country_code",
+          "javaPropertyName": "countryCode",
+          "javaType": "String",
+          "postgresType": "char",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_warehouse_code",
+          "logicalName": "code",
+          "physicalName": "code",
+          "javaPropertyName": "code",
+          "javaType": "Integer",
+          "postgresType": "integer",
+          "umlType": "Integer",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_warehouse",
+        "physicalName": "pk_warehouse",
+        "columnIds": ["column_warehouse_country_code", "column_warehouse_code"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    },
+    {
+      "id": "table_stock",
+      "logicalName": "Stock",
+      "physicalName": "stock",
+      "javaEntityName": "Stock",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_stock_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_stock_warehouse_country_code",
+          "logicalName": "warehouseCountryCode",
+          "physicalName": "warehouse_country_code",
+          "javaPropertyName": "warehouseCountryCode",
+          "javaType": "String",
+          "postgresType": "char",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_stock_warehouse_code",
+          "logicalName": "warehouseCode",
+          "physicalName": "warehouse_code",
+          "javaPropertyName": "warehouseCode",
+          "javaType": "Integer",
+          "postgresType": "integer",
+          "umlType": "Integer",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_stock",
+        "physicalName": "pk_stock",
+        "columnIds": ["column_stock_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [
+        {
+          "id": "fk_stock_warehouse",
+          "physicalName": "fk_stock_warehouse",
+          "columnIds": ["column_stock_warehouse_country_code", "column_stock_warehouse_code"],
+          "referencedTableId": "table_warehouse",
+          "referencedColumnIds": ["column_warehouse_country_code", "column_warehouse_code"],
+          "onDelete": "NO_ACTION",
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    }
+  ],
+  "diagnostics": []
+}

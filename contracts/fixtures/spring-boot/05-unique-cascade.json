@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSchemaVersion": "0.1.0",
+  "project": { "id": "project_unique_cascade", "name": "Unique Cascade" },
+  "conventions": {
+    "naming": "snake_case",
+    "identifierMaxLength": 63,
+    "inheritanceStrategy": "JOINED",
+    "identifierStrategy": "attribute-id-or-synthetic-uuid"
+  },
+  "tables": [
+    {
+      "id": "table_email_customer",
+      "logicalName": "EmailCustomer",
+      "physicalName": "email_customer",
+      "javaEntityName": "EmailCustomer",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_email_customer_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_email_customer_email",
+          "logicalName": "email",
+          "physicalName": "email",
+          "javaPropertyName": "email",
+          "javaType": "String",
+          "postgresType": "varchar(255)",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_email_customer",
+        "physicalName": "pk_email_customer",
+        "columnIds": ["column_email_customer_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [
+        {
+          "id": "uq_email_customer_email",
+          "physicalName": "uq_email_customer_email",
+          "columnIds": ["column_email_customer_email"],
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    },
+    {
+      "id": "table_invoice",
+      "logicalName": "Invoice",
+      "physicalName": "invoice",
+      "javaEntityName": "Invoice",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_invoice_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_invoice_customer_email",
+          "logicalName": "customerEmail",
+          "physicalName": "customer_email",
+          "javaPropertyName": "customerEmail",
+          "javaType": "String",
+          "postgresType": "varchar(255)",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_invoice",
+        "physicalName": "pk_invoice",
+        "columnIds": ["column_invoice_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [
+        {
+          "id": "fk_invoice_email_customer",
+          "physicalName": "fk_invoice_email_customer",
+          "columnIds": ["column_invoice_customer_email"],
+          "referencedTableId": "table_email_customer",
+          "referencedColumnIds": ["column_email_customer_email"],
+          "onDelete": "CASCADE",
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    }
+  ],
+  "diagnostics": []
+}

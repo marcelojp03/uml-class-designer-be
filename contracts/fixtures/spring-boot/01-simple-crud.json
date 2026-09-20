@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSchemaVersion": "0.1.0",
+  "project": { "id": "project_simple_crud", "name": "Simple CRUD" },
+  "conventions": {
+    "naming": "snake_case",
+    "identifierMaxLength": 63,
+    "inheritanceStrategy": "JOINED",
+    "identifierStrategy": "attribute-id-or-synthetic-uuid"
+  },
+  "tables": [
+    {
+      "id": "table_customer",
+      "logicalName": "Customer",
+      "physicalName": "customer",
+      "javaEntityName": "Customer",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_customer_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_customer_name",
+          "logicalName": "name",
+          "physicalName": "name",
+          "javaPropertyName": "name",
+          "javaType": "String",
+          "postgresType": "varchar(255)",
+          "umlType": "String",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_customer",
+        "physicalName": "pk_customer",
+        "columnIds": ["column_customer_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    },
+    {
+      "id": "table_order",
+      "logicalName": "Order",
+      "physicalName": "orders",
+      "javaEntityName": "Order",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_order_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_order_customer_id",
+          "logicalName": "customerId",
+          "physicalName": "customer_id",
+          "javaPropertyName": "customerId",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_order_description",
+          "logicalName": "description",
+          "physicalName": "description",
+          "javaPropertyName": "description",
+          "javaType": "String",
+          "postgresType": "text",
+          "umlType": "String",
+          "nullable": true,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_order",
+        "physicalName": "pk_orders",
+        "columnIds": ["column_order_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [
+        {
+          "id": "fk_order_customer",
+          "physicalName": "fk_orders_customer",
+          "columnIds": ["column_order_customer_id"],
+          "referencedTableId": "table_customer",
+          "referencedColumnIds": ["column_customer_id"],
+          "onDelete": "NO_ACTION",
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    }
+  ],
+  "diagnostics": []
+}

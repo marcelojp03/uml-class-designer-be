@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "0.1.0",
+  "sourceSchemaVersion": "0.1.0",
+  "project": { "id": "project_advanced_types", "name": "Advanced Types" },
+  "conventions": {
+    "naming": "snake_case",
+    "identifierMaxLength": 63,
+    "inheritanceStrategy": "JOINED",
+    "identifierStrategy": "attribute-id-or-synthetic-uuid"
+  },
+  "tables": [
+    {
+      "id": "table_event",
+      "logicalName": "Event",
+      "physicalName": "event_record",
+      "javaEntityName": "Event",
+      "kind": "entity",
+      "columns": [
+        {
+          "id": "column_event_id",
+          "logicalName": "id",
+          "physicalName": "id",
+          "javaPropertyName": "id",
+          "javaType": "Long",
+          "postgresType": "bigint",
+          "umlType": "Long",
+          "nullable": false,
+          "primaryKey": true,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_event_payload",
+          "logicalName": "payload",
+          "physicalName": "payload",
+          "javaPropertyName": "payload",
+          "javaType": "JsonNode",
+          "postgresType": "jsonb",
+          "umlType": "Json",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_event_amount",
+          "logicalName": "amount",
+          "physicalName": "amount",
+          "javaPropertyName": "amount",
+          "javaType": "BigDecimal",
+          "postgresType": "numeric(19,2)",
+          "umlType": "Decimal",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_event_occurred_at",
+          "logicalName": "occurredAt",
+          "physicalName": "occurred_at",
+          "javaPropertyName": "occurredAt",
+          "javaType": "Instant",
+          "postgresType": "timestamptz(3)",
+          "umlType": "Instant",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_event_sequence",
+          "logicalName": "sequence",
+          "physicalName": "sequence",
+          "javaPropertyName": "sequence",
+          "javaType": "BigInteger",
+          "postgresType": "numeric(38,0)",
+          "umlType": "BigInteger",
+          "nullable": false,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        },
+        {
+          "id": "column_event_binary",
+          "logicalName": "binary",
+          "physicalName": "binary",
+          "javaPropertyName": "binary",
+          "javaType": "byte[]",
+          "postgresType": "bytea",
+          "umlType": "Binary",
+          "nullable": true,
+          "primaryKey": false,
+          "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+        }
+      ],
+      "primaryKey": {
+        "id": "pk_event",
+        "physicalName": "pk_event_record",
+        "columnIds": ["column_event_id"],
+        "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+      },
+      "foreignKeys": [],
+      "uniqueConstraints": [],
+      "source": { "sourceIds": ["fixture"], "sourcePaths": ["/fixture"], "rule": "fixture" }
+    }
+  ],
+  "diagnostics": []
+}
