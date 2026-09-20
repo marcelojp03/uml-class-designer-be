@@ -20,6 +20,7 @@
     "spring-boot:runtime": "node -r ts-node/register scripts/spring-boot-runtime.ts",
     "spring-boot:runtime:failures": "node -r ts-node/register scripts/verify-spring-boot-runtime-failures.ts",
     "package:6a3": "node -r ts-node/register scripts/package-6a3.ts",
+    "package:6a3a": "node -r ts-node/register scripts/package-6a3.ts 6A3A --verify-determinism",
     "openapi:generate": "node --env-file=.env.example -r ts-node/register scripts/generate-openapi.ts",
     "openapi:check": "node --env-file=.env.example -r ts-node/register scripts/generate-openapi.ts --check",
     "prisma:generate": "prisma generate",
