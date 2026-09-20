@@ -47,10 +47,26 @@ interface DeliverySpec {
   title: string;
   manifestTitle: string;
   evidenceDirectory: string;
+  requiredEvidenceFiles?: readonly string[];
   promptFile: string;
   promptLabel: string;
   artifactNames: readonly [string, string, string, string];
 }
+
+export const REQUIRED_6A3A_EVIDENCE_FILES = [
+  '00_RESUMEN_EJECUTIVO.md',
+  '01_HALLAZGOS_ORIGINALES.md',
+  '02_CORRECCION_ROLES.md',
+  '03_CORRECCION_MIGRACION.md',
+  '04_EMPAQUETADO_GIT.md',
+  '05_PRUEBAS_ROLES.md',
+  '06_PRUEBAS_ZIP.md',
+  '07_RUNTIME_POSTGRESQL.md',
+  '08_REVISION_INDEPENDIENTE.md',
+  '09_GATES.md',
+  '10_GIT_Y_ENTREGABLES.md',
+  '11_TRAZABILIDAD.md',
+] as const;
 
 const DELIVERY_SPECS: Record<DeliverySpec['id'], DeliverySpec> = {
   '6A3': {
@@ -72,6 +88,7 @@ const DELIVERY_SPECS: Record<DeliverySpec['id'], DeliverySpec> = {
     title: '6A.3A',
     manifestTitle: 'Correccion 6A.3A - Roles y empaquetado',
     evidenceDirectory: '026-correccion-6a3a-roles-empaquetado',
+    requiredEvidenceFiles: REQUIRED_6A3A_EVIDENCE_FILES,
     promptFile: '031_PROMPT_CORRECCION_6A_3A_ROLES_Y_EMPAQUETADO.md',
     promptLabel: 'Prompt 031',
     artifactNames: [
@@ -95,6 +112,7 @@ export async function main(
   const deliveryRoot = join(workspaceRoot, 'entregables', delivery.id);
   const promptPath = join(knowledgeRoot, 'prompts', delivery.promptFile);
   await Promise.all([access(knowledgeRoot), access(evidenceRoot), access(promptPath)]);
+  await assertRequiredEvidenceFiles(evidenceRoot, delivery.requiredEvidenceFiles ?? []);
   await assertCleanBackendWorktree(backendRoot);
 
   const attempts = verifyDeterminism ? 3 : 1;
@@ -505,6 +523,25 @@ async function writeEvidenceManifest(
     );
   }
   await writeFile(manifestPath, `${lines.join('\n')}\n`, 'utf8');
+}
+
+export async function assertRequiredEvidenceFiles(
+  evidenceRoot: string,
+  requiredFiles: readonly string[],
+): Promise<void> {
+  const missingFiles: string[] = [];
+  for (const requiredFile of requiredFiles) {
+    try {
+      if (!(await stat(join(evidenceRoot, requiredFile))).isFile()) {
+        missingFiles.push(requiredFile);
+      }
+    } catch {
+      missingFiles.push(requiredFile);
+    }
+  }
+  if (missingFiles.length > 0) {
+    throw new Error(`Delivery evidence is incomplete: ${missingFiles.join(', ')}`);
+  }
 }
 
 async function writeDeliveryManifest(

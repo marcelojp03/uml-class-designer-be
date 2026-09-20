@@ -4,11 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import {
+  assertRequiredEvidenceFiles,
   assertTrackedBackendPath,
   assertZip,
   collectTrackedBackendEntries,
   createZip,
   listTrackedBackendPaths,
+  REQUIRED_6A3A_EVIDENCE_FILES,
 } from './package-6a3';
 
 const execFileAsync = promisify(execFile);
@@ -62,6 +64,23 @@ describe('6A.3 delivery packaging', () => {
   it('rejects a tracked file that is removed from the worktree', async () => {
     await unlink(join(root, 'src', 'main.ts'));
     await expect(collectTrackedBackendEntries(root)).rejects.toThrow();
+  });
+
+  it('requires the complete 6A3A evidence set before packaging', async () => {
+    const evidenceRoot = join(root, 'evidence');
+    await mkdir(evidenceRoot);
+    await writeFile(join(evidenceRoot, '00_RESUMEN_EJECUTIVO.md'), '# incomplete\n');
+
+    await expect(
+      assertRequiredEvidenceFiles(evidenceRoot, REQUIRED_6A3A_EVIDENCE_FILES),
+    ).rejects.toThrow('Delivery evidence is incomplete');
+
+    await Promise.all(
+      REQUIRED_6A3A_EVIDENCE_FILES.map((file) =>
+        writeFile(join(evidenceRoot, file), `# ${file}\n`),
+      ),
+    );
+    await assertRequiredEvidenceFiles(evidenceRoot, REQUIRED_6A3A_EVIDENCE_FILES);
   });
 
   it('writes identical ZIPs with ordered tracked entries and EOCD comments', async () => {
