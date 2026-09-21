@@ -103,6 +103,12 @@ export async function createConfiguredApp() {
     origin: config.corsOrigins,
     methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Auth-Intent'],
+    exposedHeaders: [
+      'Content-Disposition',
+      'Content-Length',
+      'X-Document-Revision',
+      'X-Generator-Version',
+    ],
     credentials: true,
   });
   app.useGlobalPipes(
