@@ -867,8 +867,17 @@
           "400": {
             "description": "Snapshot persistido u opciones de exportacion invalidos."
           },
+          "401": {
+            "description": "Access token o sesión inválidos."
+          },
+          "403": {
+            "description": "El actor no tiene permiso para exportar el documento."
+          },
           "404": {
             "description": "Proyecto o documento inexistente, eliminado o inaccesible."
+          },
+          "408": {
+            "description": "La generación Spring Boot excedió el tiempo máximo."
           },
           "409": {
             "description": "La revision esperada no coincide con la revision persistida.",
@@ -882,6 +891,9 @@
           },
           "429": {
             "description": "Se alcanzo el limite local de frecuencia o concurrencia."
+          },
+          "500": {
+            "description": "No fue posible generar el ZIP solicitado."
           }
         },
         "security": [

@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { SPRING_BOOT_EXPORT_LIMITS } from '../generation/spring-boot-export';
-import { SpringBootExportService } from './spring-boot-export.service';
+import { RequestTimeoutException } from '@nestjs/common';
+import {
+  SPRING_BOOT_EXPORT_LIMITS,
+  SpringBootExportLimitError,
+} from '../generation/spring-boot-export';
+import { SpringBootExportService, throwSpringBootExportError } from './spring-boot-export.service';
 
 function canonicalFixture(): Record<string, unknown> {
   return JSON.parse(
@@ -144,5 +148,21 @@ describe('SpringBootExportService', () => {
     });
     expect(canonicalValidator.validateAndNormalize).not.toHaveBeenCalled();
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps an archive timeout to the documented request timeout response', () => {
+    let caught: unknown;
+    try {
+      throwSpringBootExportError(
+        new SpringBootExportLimitError('ARCHIVE_TIMEOUT', 'Generated ZIP exceeded 10000 ms.'),
+      );
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(RequestTimeoutException);
+    expect(caught).toMatchObject({
+      response: expect.objectContaining({ code: 'ARCHIVE_TIMEOUT' }),
+      status: 408,
+    });
   });
 });

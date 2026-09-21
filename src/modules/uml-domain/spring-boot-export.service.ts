@@ -144,28 +144,7 @@ export class SpringBootExportService {
         generatorVersion: SPRING_BOOT_EXPORT_VERSION,
       };
     } catch (error: unknown) {
-      if (error instanceof HttpException) throw error;
-      if (error instanceof SpringBootExportLimitError) {
-        throw new BadRequestException({ code: error.code, message: error.message });
-      }
-      if (error instanceof RelationalModelGenerationError) {
-        throw new BadRequestException({
-          code: 'RELATIONAL_MODEL_INVALID',
-          message: error.message,
-          issues: error.diagnostics,
-        });
-      }
-      if (error instanceof SpringBootProjectGenerationError) {
-        throw new BadRequestException({
-          code: 'SPRING_BOOT_GENERATION_INVALID',
-          message: error.message,
-          issues: error.issues,
-        });
-      }
-      if (error instanceof SpringBootExportArtifactError) {
-        throw new BadRequestException({ code: error.code, message: error.message });
-      }
-      throw error;
+      throwSpringBootExportError(error);
     } finally {
       release();
     }
@@ -179,6 +158,34 @@ export class SpringBootExportService {
       });
     }
   }
+}
+
+export function throwSpringBootExportError(error: unknown): never {
+  if (error instanceof HttpException) throw error;
+  if (error instanceof SpringBootExportLimitError && error.code === 'ARCHIVE_TIMEOUT') {
+    throw new RequestTimeoutException({ code: error.code, message: error.message });
+  }
+  if (error instanceof SpringBootExportLimitError) {
+    throw new BadRequestException({ code: error.code, message: error.message });
+  }
+  if (error instanceof RelationalModelGenerationError) {
+    throw new BadRequestException({
+      code: 'RELATIONAL_MODEL_INVALID',
+      message: error.message,
+      issues: error.diagnostics,
+    });
+  }
+  if (error instanceof SpringBootProjectGenerationError) {
+    throw new BadRequestException({
+      code: 'SPRING_BOOT_GENERATION_INVALID',
+      message: error.message,
+      issues: error.issues,
+    });
+  }
+  if (error instanceof SpringBootExportArtifactError) {
+    throw new BadRequestException({ code: error.code, message: error.message });
+  }
+  throw error;
 }
 
 function safeFileStem(value: string): string {

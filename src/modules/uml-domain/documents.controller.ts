@@ -18,13 +18,17 @@ import {
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
+  ApiForbiddenResponse,
+  ApiInternalServerErrorResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiProduces,
+  ApiRequestTimeoutResponse,
   ApiTags,
   ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
 import { ProjectRole } from '@prisma/client';
@@ -111,6 +115,8 @@ export class DocumentsController {
   @ApiBadRequestResponse({
     description: 'Snapshot persistido u opciones de exportacion invalidos.',
   })
+  @ApiUnauthorizedResponse({ description: 'Access token o sesión inválidos.' })
+  @ApiForbiddenResponse({ description: 'El actor no tiene permiso para exportar el documento.' })
   @ApiConflictResponse({
     description: 'La revision esperada no coincide con la revision persistida.',
     content: {
@@ -125,6 +131,8 @@ export class DocumentsController {
   @ApiTooManyRequestsResponse({
     description: 'Se alcanzo el limite local de frecuencia o concurrencia.',
   })
+  @ApiRequestTimeoutResponse({ description: 'La generación Spring Boot excedió el tiempo máximo.' })
+  @ApiInternalServerErrorResponse({ description: 'No fue posible generar el ZIP solicitado.' })
   async exportSpringBoot(
     @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
     @Param('documentId', new ParseUUIDPipe({ version: '4' })) documentId: string,
