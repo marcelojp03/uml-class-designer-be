@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20161101" xmi:version="2.5">
+  <uml:Model xmi:id="missing_reference_model" name="MissingReference">
+    <packagedElement xmi:type="uml:Class" xmi:id="known" name="Known"/>
+    <packagedElement xmi:type="uml:Association" xmi:id="broken_association" memberEnd="broken_a broken_b">
+      <ownedEnd xmi:id="broken_a" name="known" type="known" lower="1" upper="1"/>
+      <ownedEnd xmi:id="broken_b" name="missing" type="missing" lower="0" upper="*"/>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>

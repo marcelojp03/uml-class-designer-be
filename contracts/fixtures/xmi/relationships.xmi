@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20161101" xmi:version="2.5">
+  <uml:Model xmi:id="relations_model" name="Relations">
+    <packagedElement xmi:type="uml:DataType" xmi:id="date_type" name="Date"/>
+    <packagedElement xmi:type="uml:DataType" xmi:id="void_type" name="void"/>
+    <packagedElement xmi:type="uml:Class" xmi:id="person" isAbstract="true" name="Person">
+      <ownedAttribute xmi:id="person_id" name="id" visibility="private">
+        <type xmi:type="uml:PrimitiveType" href="http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#String"/>
+      </ownedAttribute>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Interface" xmi:id="identifiable" name="Identifiable">
+      <ownedOperation xmi:id="identifiable_get_id" isAbstract="true" isStatic="false" name="getId" visibility="public">
+        <ownedParameter direction="return" xmi:id="identifiable_get_id_return" name="return">
+          <type xmi:type="uml:PrimitiveType" href="http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#String"/>
+        </ownedParameter>
+      </ownedOperation>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Class" xmi:id="employee" name="Employee">
+      <generalization general="person" xmi:id="employee_person"/>
+      <interfaceRealization supplier="identifiable" xmi:id="employee_identifiable"/>
+      <ownedAttribute xmi:id="employee_number" name="employeeNumber" visibility="private">
+        <type xmi:type="uml:PrimitiveType" href="http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#String"/>
+      </ownedAttribute>
+      <ownedOperation xmi:id="employee_assign" isAbstract="false" isStatic="false" name="assign" visibility="public">
+        <ownedParameter direction="in" xmi:id="employee_assign_project" name="project" type="project"/>
+        <ownedParameter direction="return" xmi:id="employee_assign_return" name="return">
+          <type xmi:type="uml:DataType" href="#void_type"/>
+        </ownedParameter>
+      </ownedOperation>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Class" xmi:id="department" name="Department"/>
+    <packagedElement xmi:type="uml:Class" xmi:id="address" name="Address"/>
+    <packagedElement xmi:type="uml:Class" xmi:id="project" name="Project"/>
+    <packagedElement xmi:type="uml:AssociationClass" xmi:id="enrollment" memberEnd="enrollment_employee enrollment_project" name="Enrollment">
+      <ownedAttribute xmi:id="enrollment_date" name="enrolledAt" visibility="private">
+        <type xmi:type="uml:DataType" href="#date_type"/>
+      </ownedAttribute>
+      <ownedEnd aggregation="none" isNavigable="true" lower="0" name="employees" type="employee" upper="-1" xmi:id="enrollment_employee"/>
+      <ownedEnd aggregation="none" isNavigable="true" lower="0" name="projects" type="project" upper="-1" xmi:id="enrollment_project"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="department_employees" memberEnd="department_employees_department department_employees_employee" name="departmentEmployees">
+      <ownedEnd aggregation="shared" isNavigable="true" lower="1" name="department" type="department" upper="1" xmi:id="department_employees_department"/>
+      <ownedEnd aggregation="none" isNavigable="false" lower="0" name="employees" type="employee" upper="-1" xmi:id="department_employees_employee"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="person_addresses" memberEnd="person_addresses_person person_addresses_address" name="addresses">
+      <ownedEnd aggregation="composite" isNavigable="true" lower="1" name="person" type="person" upper="1" xmi:id="person_addresses_person"/>
+      <ownedEnd aggregation="none" isNavigable="false" lower="0" name="addresses" type="address" upper="-1" xmi:id="person_addresses_address"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="employee_mentor" memberEnd="employee_mentor_mentor employee_mentor_mentee" name="mentors">
+      <ownedEnd aggregation="none" isNavigable="true" lower="0" name="mentor" type="employee" upper="1" xmi:id="employee_mentor_mentor"/>
+      <ownedEnd aggregation="none" isNavigable="false" lower="0" name="mentees" type="employee" upper="-1" xmi:id="employee_mentor_mentee"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="employee_projects" memberEnd="employee_projects_employee employee_projects_project" name="assignedTo">
+      <ownedEnd aggregation="none" isNavigable="true" lower="0" name="employees" type="employee" upper="-1" xmi:id="employee_projects_employee"/>
+      <ownedEnd aggregation="none" isNavigable="true" lower="0" name="projects" type="project" upper="-1" xmi:id="employee_projects_project"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="employee_reviews" memberEnd="employee_reviews_employee employee_reviews_project" name="reviews">
+      <ownedEnd aggregation="none" isNavigable="true" lower="0" name="reviewers" type="employee" upper="-1" xmi:id="employee_reviews_employee"/>
+      <ownedEnd aggregation="none" isNavigable="false" lower="0" name="reviewedProjects" type="project" upper="-1" xmi:id="employee_reviews_project"/>
+    </packagedElement>
+    <packagedElement client="employee" name="employeeDepartment" supplier="department" xmi:id="employee_department_dependency" xmi:type="uml:Dependency"/>
+  </uml:Model>
+</xmi:XMI>

@@ -16,6 +16,7 @@ import { AccessTokenVerifierService } from '../src/modules/auth/access-token-ver
 import { CollaborationGateway } from '../src/modules/uml-domain/collaboration.gateway';
 import { CollaborationPresenceStore } from '../src/modules/uml-domain/collaboration-presence.store';
 import { DocumentMutationQueueService } from '../src/modules/uml-domain/document-mutation-queue.service';
+import { DocumentsService } from '../src/modules/uml-domain/documents.service';
 import type { CanonicalUmlModel } from '../src/modules/uml-domain/collaboration.types';
 
 interface AuthContext {
@@ -702,28 +703,36 @@ describe('authenticated realtime collaboration (e2e)', () => {
       .set(bearer(writer))
       .send({ name: `Session race ${randomUUID()}` })
       .expect(201);
-    const sessionId = tokenSessionId(writer.accessToken);
-    const lockAcquired = deferred();
-    const releaseRevocation = deferred();
-    const revocation = prisma.$transaction(async (transaction) => {
-      await transaction.authSession.update({
-        where: { id: sessionId },
-        data: { revokedAt: new Date() },
+    const documentsService = app.get(DocumentsService);
+    const createReached = deferred();
+    const releaseCreate = deferred();
+    const originalCreate = documentsService.create.bind(documentsService);
+    const createSpy = jest
+      .spyOn(documentsService, 'create')
+      .mockImplementation(async (...args: Parameters<DocumentsService['create']>) => {
+        createReached.resolve();
+        await releaseCreate.promise;
+        return originalCreate(...args);
       });
-      lockAcquired.resolve();
-      await releaseRevocation.promise;
-    });
-    await lockAcquired.promise;
 
-    const createDocumentRequest = api()
-      .post(`/projects/${project.body.id as string}/documents`)
-      .set(bearer(writer))
-      .send({ name: `Blocked ${randomUUID()}`, canonicalModel: structuredClone(validModel) })
-      .then((response) => response);
-    await Promise.resolve();
-    releaseRevocation.resolve();
-    await revocation;
-    expect((await createDocumentRequest).status).toBe(401);
+    try {
+      const createDocumentRequest = api()
+        .post(`/projects/${project.body.id as string}/documents`)
+        .set(bearer(writer))
+        .send({ name: `Blocked ${randomUUID()}`, canonicalModel: structuredClone(validModel) })
+        .then((response) => response);
+      await createReached.promise;
+      await api()
+        .post('/auth/logout')
+        .set(authIntent)
+        .set('Cookie', writer.refreshCookie)
+        .expect(204);
+      releaseCreate.resolve();
+      expect((await createDocumentRequest).status).toBe(401);
+    } finally {
+      releaseCreate.resolve();
+      createSpy.mockRestore();
+    }
     expect(
       await prisma.umlDocument.count({ where: { projectId: project.body.id as string } }),
     ).toBe(0);

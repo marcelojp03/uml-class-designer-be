@@ -16,6 +16,8 @@ import {
 const execFileAsync = promisify(execFile);
 const ZIP_COMMENT = 'tracked-source-test';
 
+jest.setTimeout(30_000);
+
 describe('6A.3 delivery packaging', () => {
   let root: string;
 

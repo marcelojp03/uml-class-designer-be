@@ -6,6 +6,8 @@ import { ProjectRole } from '@prisma/client';
 import request = require('supertest');
 import { createConfiguredApp } from '../src/bootstrap';
 import { PrismaService } from '../src/modules/database/prisma.service';
+import { CollaborationLockStore } from '../src/modules/uml-domain/collaboration-lock.store';
+import { DocumentsService } from '../src/modules/uml-domain/documents.service';
 
 interface AuthContext {
   id: string;
@@ -65,6 +67,16 @@ function binaryResponseParser(
   });
   stream.on('error', (error: Error) => callback(error, Buffer.alloc(0)));
   stream.on('end', () => callback(null, Buffer.concat(chunks)));
+}
+
+function deferred<Value>() {
+  let resolveDeferred!: (value: Value) => void;
+  let rejectDeferred!: (reason?: unknown) => void;
+  const promise = new Promise<Value>((next, fail) => {
+    resolveDeferred = next;
+    rejectDeferred = fail;
+  });
+  return { promise, reject: rejectDeferred, resolve: resolveDeferred };
 }
 
 describe('Authentication, projects and UML persistence (e2e)', () => {
@@ -967,6 +979,402 @@ describe('Authentication, projects and UML persistence (e2e)', () => {
         expect(
           await prisma.documentRevision.count({ where: { documentId: cascadeDocumentId } }),
         ).toBe(0);
+      });
+    });
+
+    describe('XMI interoperability', () => {
+      const xmiFixturePath = resolve(process.cwd(), 'contracts/fixtures/xmi/basic.xmi');
+
+      async function createXmiDocument(): Promise<string> {
+        const xmiCompatibleModel = structuredClone(validModel);
+        const diagram = xmiCompatibleModel.diagram as {
+          elements: Array<{ stereotypes?: string[] }>;
+          relationships: Array<{
+            associationClassId?: string;
+            kind: string;
+            name?: string;
+            source: { elementId: string; multiplicity: string; navigable: boolean; role: string };
+            target: { elementId: string; multiplicity: string; navigable: boolean; role: string };
+          }>;
+        };
+        const { elements, relationships } = diagram;
+        for (const element of elements) {
+          delete element.stereotypes;
+        }
+        for (const relationship of relationships) {
+          if (!['association', 'aggregation', 'composition'].includes(relationship.kind)) {
+            relationship.source = {
+              ...relationship.source,
+              multiplicity: '1',
+              navigable: false,
+              role: '',
+            };
+            relationship.target = {
+              ...relationship.target,
+              multiplicity: '1',
+              navigable: false,
+              role: '',
+            };
+          }
+          if (relationship.associationClassId && relationship.name === undefined) {
+            relationship.name = 'Enrollment';
+          }
+        }
+        const response = await api()
+          .post(`/projects/${projectId}/documents`)
+          .set(bearer(owner))
+          .send({ name: `XMI ${randomUUID()}`, canonicalModel: xmiCompatibleModel })
+          .expect(201);
+        return response.body.id as string;
+      }
+
+      async function preview(
+        documentId: string,
+        context: AuthContext = owner,
+      ): Promise<request.Response> {
+        return api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/preview`)
+          .set(bearer(context))
+          .attach('file', xmiFixturePath, {
+            contentType: 'application/xmi+xml',
+            filename: 'basic.xmi',
+          })
+          .expect(200);
+      }
+
+      it('previews a bounded XMI without changing the persisted document', async () => {
+        const documentId = await createXmiDocument();
+        const before = await prisma.umlDocument.findUniqueOrThrow({
+          where: { id: documentId },
+          select: { canonicalModel: true, revision: true },
+        });
+
+        const response = await preview(documentId);
+
+        expect(response.body).toMatchObject({
+          currentRevision: 0,
+          profile: { id: 'uml-class-designer-xmi', version: '1.0.0', xmiVersion: '2.5' },
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+          summary: { attributes: 2, classes: 2, interfaces: 0, operations: 1, relationships: 1 },
+        });
+        expect(await prisma.umlDocument.findUnique({ where: { id: documentId } })).toMatchObject(
+          before,
+        );
+        expect(await prisma.documentRevision.count({ where: { documentId } })).toBe(1);
+      });
+
+      it('applies only the previewed hash through CAS and creates one revision', async () => {
+        const documentId = await createXmiDocument();
+        const validated = await preview(documentId);
+
+        const applied = await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/apply`)
+          .set(bearer(editor))
+          .field('expectedRevision', '0')
+          .field('sha256', validated.body.sha256 as string)
+          .attach('file', xmiFixturePath, {
+            contentType: 'application/xmi+xml',
+            filename: 'basic.xmi',
+          })
+          .expect(200);
+
+        expect(applied.body).toMatchObject({
+          revision: 1,
+          updatedById: editor.id,
+          canonicalModel: { diagram: { name: 'Commerce' } },
+        });
+        expect(await prisma.documentRevision.count({ where: { documentId } })).toBe(2);
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/apply`)
+          .set(bearer(owner))
+          .field('expectedRevision', '0')
+          .field('sha256', validated.body.sha256 as string)
+          .attach('file', xmiFixturePath, {
+            contentType: 'application/xmi+xml',
+            filename: 'basic.xmi',
+          })
+          .expect(409);
+      });
+
+      it('requires acknowledging preview warnings before applying a lossy import', async () => {
+        const documentId = await createXmiDocument();
+        const lossyXmi = Buffer.from(
+          readFileSync(xmiFixturePath, 'utf8').replace(
+            '</uml:Model>',
+            '<packagedElement xmi:type="uml:Enumeration" xmi:id="status" name="Status"/></uml:Model>',
+          ),
+          'utf8',
+        );
+        const warningPreview = await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/preview`)
+          .set(bearer(owner))
+          .attach('file', lossyXmi, {
+            contentType: 'application/xmi+xml',
+            filename: 'lossy.xmi',
+          })
+          .expect(200);
+
+        expect(warningPreview.body.diagnostics).toEqual(
+          expect.arrayContaining([expect.objectContaining({ code: 'XMI_UNSUPPORTED_ELEMENT' })]),
+        );
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/apply`)
+          .set(bearer(owner))
+          .field('expectedRevision', '0')
+          .field('sha256', warningPreview.body.sha256 as string)
+          .attach('file', lossyXmi, {
+            contentType: 'application/xmi+xml',
+            filename: 'lossy.xmi',
+          })
+          .expect(400);
+        expect(
+          await prisma.umlDocument.findUniqueOrThrow({ where: { id: documentId } }),
+        ).toMatchObject({ revision: 0 });
+
+        const acknowledged = await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/apply`)
+          .set(bearer(owner))
+          .field('expectedRevision', '0')
+          .field('sha256', warningPreview.body.sha256 as string)
+          .field('acknowledgeWarnings', 'true')
+          .attach('file', lossyXmi, {
+            contentType: 'application/xmi+xml',
+            filename: 'lossy.xmi',
+          })
+          .expect(200);
+
+        expect(acknowledged.body).toMatchObject({ revision: 1 });
+        expect(await prisma.documentRevision.count({ where: { documentId } })).toBe(2);
+      });
+
+      it('imports a real Enterprise Architect 2.5.1 export after acknowledging declared warnings', async () => {
+        const documentId = await createXmiDocument();
+        const eaFixturePath = resolve(
+          process.cwd(),
+          'contracts/fixtures/xmi/enterprise-architect/ea15-uml251.xmi',
+        );
+        const eaFixture = readFileSync(eaFixturePath);
+        const previewed = await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/preview`)
+          .set(bearer(owner))
+          .attach('file', eaFixture, {
+            contentType: 'application/xmi+xml',
+            filename: 'ea15-uml251.xmi',
+          })
+          .expect(200);
+
+        expect(previewed.body.profile).toMatchObject({
+          umlNamespace: 'http://www.omg.org/spec/UML/20131001',
+          version: '1.0.0',
+          xmiVersion: null,
+        });
+        expect(previewed.body.summary).toMatchObject({
+          attributes: 10,
+          classes: 8,
+          interfaces: 1,
+          operations: 5,
+          relationships: 9,
+        });
+        expect(previewed.body.diagnostics.map((entry: { code: string }) => entry.code)).toEqual(
+          expect.arrayContaining(['XMI_EXTENSION_IGNORED', 'XMI_PACKAGE_FLATTENED']),
+        );
+
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/apply`)
+          .set(bearer(owner))
+          .field('expectedRevision', '0')
+          .field('sha256', previewed.body.sha256 as string)
+          .attach('file', eaFixture, {
+            contentType: 'application/xmi+xml',
+            filename: 'ea15-uml251.xmi',
+          })
+          .expect(400);
+
+        const applied = await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/apply`)
+          .set(bearer(owner))
+          .field('expectedRevision', '0')
+          .field('sha256', previewed.body.sha256 as string)
+          .field('acknowledgeWarnings', 'true')
+          .attach('file', eaFixture, {
+            contentType: 'application/xmi+xml',
+            filename: 'ea15-uml251.xmi',
+          })
+          .expect(200);
+
+        expect(applied.body).toMatchObject({ revision: 1 });
+        expect(applied.body.canonicalModel.diagram.elements).toHaveLength(9);
+        expect(applied.body.canonicalModel.diagram.relationships).toHaveLength(9);
+        expect(await prisma.documentRevision.count({ where: { documentId } })).toBe(2);
+      });
+
+      it('rejects invalid XMI inputs, wrong hashes, IDOR and locked documents without mutation', async () => {
+        const documentId = await createXmiDocument();
+        const validated = await preview(documentId);
+        const lockStore = app.get(CollaborationLockStore);
+        const lock = lockStore.acquire({
+          documentId,
+          elementId: 'person',
+          socketId: 'xmi-e2e-lock',
+          ttlSeconds: 30,
+          userId: owner.id,
+        });
+        if (!lock) throw new Error('Expected an XMI lock fixture.');
+
+        try {
+          await api()
+            .post(`/projects/${projectId}/documents/${documentId}/xmi/import/apply`)
+            .set(bearer(editor))
+            .field('expectedRevision', '0')
+            .field('sha256', validated.body.sha256 as string)
+            .attach('file', xmiFixturePath, {
+              contentType: 'application/xmi+xml',
+              filename: 'basic.xmi',
+            })
+            .expect(409);
+        } finally {
+          lockStore.release({
+            documentId,
+            elementId: 'person',
+            leaseId: lock.lock.leaseId,
+            socketId: 'xmi-e2e-lock',
+            userId: owner.id,
+          });
+        }
+
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/apply`)
+          .set(bearer(owner))
+          .field('expectedRevision', '0')
+          .field('sha256', '0'.repeat(64))
+          .attach('file', xmiFixturePath, {
+            contentType: 'application/xmi+xml',
+            filename: 'basic.xmi',
+          })
+          .expect(400);
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/preview`)
+          .set(bearer(owner))
+          .attach('file', Buffer.from('<xmi:XMI>', 'utf8'), {
+            contentType: 'application/xml',
+            filename: 'bad.xmi',
+          })
+          .expect(400);
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/preview`)
+          .set(bearer(owner))
+          .attach('file', xmiFixturePath, { contentType: 'image/png', filename: 'not-xmi.png' })
+          .expect(415);
+        await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/preview`)
+          .set(bearer(outsider))
+          .attach('file', xmiFixturePath, {
+            contentType: 'application/xmi+xml',
+            filename: 'basic.xmi',
+          })
+          .expect(404);
+        expect(
+          await prisma.umlDocument.findUniqueOrThrow({ where: { id: documentId } }),
+        ).toMatchObject({
+          revision: 0,
+        });
+      });
+
+      it('exports a revision-pinned XMI response that can be previewed again', async () => {
+        const documentId = await createXmiDocument();
+        const exportPath = `/projects/${projectId}/documents/${documentId}/xmi/export?expectedRevision=0`;
+        const first = await api()
+          .get(exportPath)
+          .set(bearer(owner))
+          .buffer(true)
+          .parse(binaryResponseParser)
+          .expect(200);
+        const second = await api()
+          .get(exportPath)
+          .set(bearer(owner))
+          .buffer(true)
+          .parse(binaryResponseParser)
+          .expect(200);
+
+        expect(first.headers['content-type']).toMatch(/^application\/xmi\+xml/);
+        expect(first.headers['content-disposition']).toMatch(
+          /attachment; filename="[a-z0-9.-]+-r0\.xmi"/,
+        );
+        expect(first.headers['cache-control']).toBe('private, no-store');
+        expect(first.headers['x-content-type-options']).toBe('nosniff');
+        expect(first.headers['x-document-revision']).toBe('0');
+        expect(first.headers['x-xmi-profile-version']).toBe('1.0.0');
+        expect(first.headers['x-xmi-sha256']).toMatch(/^[a-f0-9]{64}$/);
+        expect(first.headers['content-length']).toBe(String((first.body as Buffer).byteLength));
+        expect((first.body as Buffer).equals(second.body as Buffer)).toBe(true);
+
+        const reimported = await api()
+          .post(`/projects/${projectId}/documents/${documentId}/xmi/import/preview`)
+          .set(bearer(editor))
+          .attach('file', first.body as Buffer, {
+            contentType: 'application/xmi+xml',
+            filename: 'export.xmi',
+          })
+          .expect(200);
+        expect(reimported.body.summary).toMatchObject({
+          classes: 5,
+          interfaces: 1,
+          relationships: 7,
+        });
+        await api()
+          .get(`${exportPath.slice(0, -1)}9`)
+          .set(bearer(owner))
+          .expect(409);
+      });
+
+      it('serializes a derived XMI snapshot with membership revocation', async () => {
+        const exporter = await register('xmi.snapshot@example.com', 'XMI Snapshot');
+        await api()
+          .post(`/projects/${projectId}/members`)
+          .set(bearer(owner))
+          .send({ userId: exporter.id, email: exporter.email })
+          .expect(201);
+        const session = await prisma.authSession.findFirstOrThrow({
+          where: { revokedAt: null, userId: exporter.id },
+          select: { id: true },
+        });
+        const documentId = await createXmiDocument();
+        const documents = app.get(DocumentsService);
+        const snapshotStarted = deferred<void>();
+        const releaseSnapshot = deferred<void>();
+        const snapshot = documents.withAuthorizedDocumentSnapshot(
+          projectId,
+          documentId,
+          exporter.id,
+          session.id,
+          async (document) => {
+            snapshotStarted.resolve();
+            await releaseSnapshot.promise;
+            return document.revision;
+          },
+        );
+        await snapshotStarted.promise;
+
+        let removalCompleted = false;
+        const removal = api()
+          .delete(`/projects/${projectId}/members/${exporter.id}`)
+          .set(bearer(owner))
+          .then((response) => {
+            removalCompleted = true;
+            return response;
+          });
+        try {
+          await new Promise<void>((resolveDelay) => setTimeout(resolveDelay, 50));
+          expect(removalCompleted).toBe(false);
+        } finally {
+          releaseSnapshot.resolve();
+        }
+        await expect(snapshot).resolves.toBe(0);
+        expect((await removal).status).toBe(204);
+        await api()
+          .get(`/projects/${projectId}/documents/${documentId}/xmi/export?expectedRevision=0`)
+          .set(bearer(exporter))
+          .expect(404);
       });
     });
   });

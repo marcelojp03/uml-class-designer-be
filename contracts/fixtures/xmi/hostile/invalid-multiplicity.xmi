@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20161101" xmi:version="2.5">
+  <uml:Model xmi:id="invalid_multiplicity_model" name="InvalidMultiplicity">
+    <packagedElement xmi:type="uml:Class" xmi:id="left" name="Left"/>
+    <packagedElement xmi:type="uml:Class" xmi:id="right" name="Right"/>
+    <packagedElement xmi:type="uml:Association" xmi:id="invalid_association" memberEnd="invalid_left invalid_right">
+      <ownedEnd xmi:id="invalid_left" name="left" type="left" lower="2" upper="1"/>
+      <ownedEnd xmi:id="invalid_right" name="right" type="right" lower="0" upper="*"/>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>

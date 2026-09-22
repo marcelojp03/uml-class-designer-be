@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20161101" xmi:version="2.5">
+  <uml:Model xmi:id="commerce_model" name="Commerce">
+    <packagedElement xmi:type="uml:DataType" xmi:id="decimal_type" name="Decimal"/>
+    <packagedElement xmi:type="uml:Class" xmi:id="customer" name="Customer">
+      <ownedAttribute xmi:id="customer_name" name="name" visibility="private">
+        <type xmi:type="uml:PrimitiveType" href="http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#String"/>
+      </ownedAttribute>
+      <ownedOperation xmi:id="customer_place_order" isAbstract="false" isStatic="false" name="placeOrder" visibility="public">
+        <ownedParameter direction="return" xmi:id="customer_place_order_return" name="return">
+          <type xmi:type="uml:PrimitiveType" href="http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#Boolean"/>
+        </ownedParameter>
+      </ownedOperation>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Class" xmi:id="order" name="Order">
+      <ownedAttribute xmi:id="order_total" name="total" visibility="private">
+        <type xmi:type="uml:DataType" href="#decimal_type"/>
+      </ownedAttribute>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="customer_orders" memberEnd="customer_orders_customer customer_orders_order" name="orders" navigableOwnedEnd="customer_orders_order">
+      <ownedEnd aggregation="none" isNavigable="false" lower="1" name="customer" type="customer" upper="1" xmi:id="customer_orders_customer"/>
+      <ownedEnd aggregation="none" isNavigable="true" lower="0" name="orders" type="order" upper="-1" xmi:id="customer_orders_order"/>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>

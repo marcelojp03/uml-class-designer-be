@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20161101" xmi:version="2.5">
+  <uml:Model xmi:id="duplicate_model" name="Duplicate">
+    <packagedElement xmi:type="uml:Class" xmi:id="same" name="First"/>
+    <packagedElement xmi:type="uml:Class" xmi:id="same" name="Second"/>
+  </uml:Model>
+</xmi:XMI>

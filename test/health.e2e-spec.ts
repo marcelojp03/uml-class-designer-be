@@ -56,6 +56,8 @@ describe('Health endpoint (e2e)', () => {
       'content-length',
       'x-document-revision',
       'x-generator-version',
+      'x-xmi-profile-version',
+      'x-xmi-sha256',
     ]);
     expect(exposedHeaders).not.toContain('*');
   });

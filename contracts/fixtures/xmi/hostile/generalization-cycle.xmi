@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20161101" xmi:version="2.5">
+  <uml:Model xmi:id="cycle_model" name="Cycle">
+    <packagedElement xmi:type="uml:Class" xmi:id="first" name="First"><generalization xmi:id="first_second" general="second"/></packagedElement>
+    <packagedElement xmi:type="uml:Class" xmi:id="second" name="Second"><generalization xmi:id="second_first" general="first"/></packagedElement>
+  </uml:Model>
+</xmi:XMI>

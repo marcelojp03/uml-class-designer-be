@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 
-const baseUrl = 'http://127.0.0.1:3001';
+const port = process.env.SMOKE_API_PORT ?? '3102';
+const baseUrl = `http://127.0.0.1:${port}`;
 const pnpmExecPath = process.env.npm_execpath;
 const shutdownTimeoutMs = 10_000;
 
@@ -64,7 +65,7 @@ function startProductionServer(): ProductionServer {
   const child = spawn(process.execPath, [pnpmExecPath, 'start'], {
     stdio: 'inherit',
     cwd: process.cwd(),
-    env: { ...process.env, NODE_ENV: 'test', PORT: '3001', CORS_ORIGINS: 'http://localhost:4173' },
+    env: { ...process.env, NODE_ENV: 'test', PORT: port, CORS_ORIGINS: 'http://localhost:4173' },
   });
   const server: ProductionServer = {
     child,

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20161101" xmlns:vendor="https://example.invalid/vendor" xmi:version="2.5">
+  <uml:Model xmi:id="unknown_namespace_model" name="UnknownNamespace">
+    <packagedElement xmi:type="uml:Class" xmi:id="supported" name="Supported"/>
+    <vendor:packagedElement xmi:id="ignored" name="Ignored"/>
+  </uml:Model>
+</xmi:XMI>

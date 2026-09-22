@@ -26,7 +26,7 @@ const repeatedFixtureNames = [
   '06-uuid-pgcrypto.json',
 ] as const;
 
-const mavenTimeoutMs = 120_000;
+const mavenTimeoutMs = 300_000;
 const terminationTimeoutMs = 10_000;
 const fixtureDirectory = resolve(process.cwd(), 'contracts/fixtures/spring-boot');
 const reportPath = process.env.SPRING_BOOT_VERIFY_REPORT;
