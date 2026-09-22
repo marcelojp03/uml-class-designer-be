@@ -1,0 +1,2 @@
+# Los fixtures XMI se verifican por SHA-256; se preservan los bytes exactos.
+*.xmi -text
