@@ -899,6 +899,45 @@ describe('XMI adapter', () => {
     );
   });
 
+  it('maps classifier-owned association ends by their declared type', () => {
+    const input = Buffer.from(
+      `<?xml version="1.0" encoding="UTF-8"?><xmi:XMI xmlns:xmi="${XMI_NAMESPACE}" xmlns:uml="${UML_NAMESPACE}" xmi:version="2.5"><uml:Model xmi:id="model" name="Owned ends"><packagedElement xmi:type="uml:Class" xmi:id="a" name="A"><ownedAttribute xmi:id="end_a" association="rel" lower="0" name="bs" type="b" upper="-1"/></packagedElement><packagedElement xmi:type="uml:Class" xmi:id="b" name="B"><ownedAttribute xmi:id="end_b" association="rel" lower="1" name="a" type="a" upper="1"/></packagedElement><packagedElement xmi:type="uml:Association" xmi:id="rel" memberEnd="end_a end_b" name="owns"/></uml:Model></xmi:XMI>`,
+      'utf8',
+    );
+    const result = importXmiToCanonical(input, seed);
+    const names = new Map(
+      result.model.diagram.elements.map((element) => [element.id, element.name]),
+    );
+    const relationship = result.model.diagram.relationships[0];
+    if (!relationship) throw new Error('La asociacion con extremos de clase no se importo.');
+
+    expect({
+      kind: relationship.kind,
+      name: relationship.name,
+      source: `${names.get(relationship.source.elementId)}:${relationship.source.role}:${relationship.source.multiplicity}:${relationship.source.navigable}`,
+      target: `${names.get(relationship.target.elementId)}:${relationship.target.role}:${relationship.target.multiplicity}:${relationship.target.navigable}`,
+    }).toEqual({
+      kind: 'association',
+      name: 'owns',
+      source: 'B:bs:0..*:true',
+      target: 'A:a:1:true',
+    });
+  });
+
+  it('rejects classifier-owned ends that reference an unknown association', () => {
+    const basic = fixture('basic.xmi').toString('utf8');
+    expectXmiError(
+      Buffer.from(
+        basic.replace(
+          '<packagedElement xmi:type="uml:Class" xmi:id="customer" name="Customer">',
+          '<packagedElement xmi:type="uml:Class" xmi:id="customer" name="Customer"><ownedAttribute xmi:id="orphan_end" association="missing_rel" lower="0" name="orders" type="order" upper="-1"/>',
+        ),
+        'utf8',
+      ),
+      'XMI_MISSING_REFERENCE',
+    );
+  });
+
   it('imports a real Enterprise Architect 15 XMI 2.5.1 export without losing supported semantics', () => {
     const result = importFixture('enterprise-architect/ea15-uml251.xmi');
 

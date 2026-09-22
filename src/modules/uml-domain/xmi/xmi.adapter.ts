@@ -1671,6 +1671,21 @@ function mapOperation(
   };
 }
 
+function resolveEndClassifier(
+  end: RawAssociationEnd,
+  classifierByExternalId: Map<string, { id: string; name: string }>,
+): { id: string; name: string } {
+  const reference = end.type.reference;
+  const localHref = end.type.href?.startsWith('#') ? fragmentName(end.type.href) : undefined;
+  const classifier =
+    (reference ? classifierByExternalId.get(reference) : undefined) ??
+    (localHref ? classifierByExternalId.get(localHref) : undefined);
+  if (!classifier) {
+    xmiError('XMI_MISSING_REFERENCE', 'Una relación XMI referencia un clasificador inexistente.');
+  }
+  return classifier;
+}
+
 function mapAssociationEnd(
   end: RawAssociationEnd,
   classifierByExternalId: Map<string, { id: string; name: string }>,
@@ -1678,24 +1693,16 @@ function mapAssociationEnd(
   navigableEndIdsDeclared: boolean,
 ): UmlRelationshipEnd {
   if (end.ownerClassifierId) {
-    // Extremo navegable publicado como propiedad del clasificador propietario
-    // (convencion de Enterprise Architect): el propietario es el clasificador
-    // del extremo.
+    // Una propiedad de clase tipada X representa el extremo navegable en X; el
+    // clasificador propietario es el extremo opuesto. El elemento del extremo
+    // se resuelve por su tipo, no por quien declara la propiedad.
     const owner = classifierByExternalId.get(end.ownerClassifierId);
     if (!owner) {
       xmiError('XMI_MISSING_REFERENCE', 'Un extremo XMI pertenece a un clasificador inexistente.');
     }
-    if (end.type.declared && end.type.reference) {
-      const opposite = classifierByExternalId.get(end.type.reference);
-      if (!opposite) {
-        xmiError(
-          'XMI_MISSING_REFERENCE',
-          'Un extremo navegable XMI referencia un clasificador inexistente.',
-        );
-      }
-    }
+    const classifier = resolveEndClassifier(end, classifierByExternalId);
     return {
-      elementId: owner.id,
+      elementId: classifier.id,
       multiplicity: multiplicity(end.lower, end.upper),
       navigable: true,
       role:
@@ -1704,12 +1711,7 @@ function mapAssociationEnd(
           : requireRoundTrippableAttributeValue(end.name, 'El rol de extremo XMI'),
     };
   }
-  const classifier = end.type.reference
-    ? classifierByExternalId.get(end.type.reference)
-    : undefined;
-  if (!classifier) {
-    xmiError('XMI_MISSING_REFERENCE', 'Una relación XMI referencia un clasificador inexistente.');
-  }
+  const classifier = resolveEndClassifier(end, classifierByExternalId);
   const listedAsNavigable = end.id !== undefined && navigableEndIds.includes(end.id);
   if (end.navigableDeclared && navigableEndIdsDeclared && end.navigable !== listedAsNavigable) {
     xmiError('XMI_MALFORMED', 'Una asociación XMI declara navegabilidad conflictiva.');
@@ -1731,6 +1733,18 @@ function mapAssociations(
   classifierByExternalId: Map<string, { id: string; name: string }>,
   diagnostics: XmiDiagnostic[],
 ): UmlRelationship[] {
+  const associationIds = new Set<string>();
+  for (const association of associations) {
+    if (association.id !== undefined) associationIds.add(association.id);
+  }
+  for (const end of classifierEnds) {
+    if (end.associationRef === undefined || !associationIds.has(end.associationRef)) {
+      xmiError(
+        'XMI_MISSING_REFERENCE',
+        'Un extremo navegable XMI referencia una asociación inexistente.',
+      );
+    }
+  }
   const relationships: UmlRelationship[] = [];
   for (const association of associations) {
     const externalId = requireIdentifier(association.id, 'La asociación XMI');
