@@ -15,6 +15,10 @@ const CANONICAL_SCHEMA_COMPONENT = 'CanonicalUmlModel';
 const CLOSED_REQUEST_SCHEMA_COMPONENTS = new Set([
   'ExportSpringBootDto',
   'SpringBootExportOptionsDto',
+  'ApplyXmiImportDto',
+  'ApplyXmiImportUploadDto',
+  'ExportXmiDto',
+  'XmiPreviewUploadDto',
 ]);
 
 function toOpenApiSchema(value: unknown): unknown {
@@ -108,6 +112,8 @@ export async function createConfiguredApp() {
       'Content-Length',
       'X-Document-Revision',
       'X-Generator-Version',
+      'X-XMI-Profile-Version',
+      'X-XMI-SHA256',
     ],
     credentials: true,
   });

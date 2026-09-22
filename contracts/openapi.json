@@ -787,6 +787,281 @@
         ]
       }
     },
+    "/projects/{projectId}/documents/{documentId}/xmi/import/preview": {
+      "post": {
+        "operationId": "DocumentsController_previewXmiImport",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/XmiPreviewUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/XmiImportPreviewResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "XMI malformado, inválido o semánticamente incompatible."
+          },
+          "401": {
+            "description": "Access token o sesión inválidos."
+          },
+          "403": {
+            "description": "El actor no tiene permiso para importar el documento."
+          },
+          "404": {
+            "description": "Documento inexistente o perteneciente a otro proyecto."
+          },
+          "408": {
+            "description": "El procesamiento XMI excedió el presupuesto permitido."
+          },
+          "413": {
+            "description": "El archivo XMI supera los límites permitidos."
+          },
+          "415": {
+            "description": "El archivo no declara un tipo XML/XMI aceptado."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Previsualiza un XMI sin persistir cambios",
+        "tags": [
+          "uml-documents"
+        ]
+      }
+    },
+    "/projects/{projectId}/documents/{documentId}/xmi/import/apply": {
+      "post": {
+        "operationId": "DocumentsController_applyXmiImport",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyXmiImportUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "XMI, hash o modelo canónico inválido, o advertencias del preview sin confirmar (acknowledgeWarnings)."
+          },
+          "401": {
+            "description": "Access token o sesión inválidos."
+          },
+          "403": {
+            "description": "El actor no tiene permiso para importar el documento."
+          },
+          "404": {
+            "description": "Documento inexistente o perteneciente a otro proyecto."
+          },
+          "408": {
+            "description": "El procesamiento XMI excedió el presupuesto permitido."
+          },
+          "409": {
+            "description": "Conflicto de revisión, nombre o lock activo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionConflictResponseDto"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "El archivo XMI supera los límites permitidos."
+          },
+          "415": {
+            "description": "El archivo no declara un tipo XML/XMI aceptado."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Aplica un XMI validado mediante compare-and-swap",
+        "tags": [
+          "uml-documents"
+        ]
+      }
+    },
+    "/projects/{projectId}/documents/{documentId}/xmi/export": {
+      "get": {
+        "operationId": "DocumentsController_exportXmi",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "expectedRevision",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/xmi+xml": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "XMI generado desde el snapshot autorizado y validado.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "example": "private, no-store",
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "example": "nosniff",
+                  "type": "string"
+                }
+              },
+              "X-Document-Revision": {
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-XMI-Profile-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-XMI-SHA256": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Revisión solicitada o snapshot persistido inválido."
+          },
+          "401": {
+            "description": "Access token o sesión inválidos."
+          },
+          "403": {
+            "description": "El actor no tiene permiso para exportar el documento."
+          },
+          "404": {
+            "description": "Documento inexistente o perteneciente a otro proyecto."
+          },
+          "409": {
+            "description": "La revisión esperada no coincide con la revisión persistida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionConflictResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Exporta el snapshot UML persistido como XMI UTF-8",
+        "tags": [
+          "uml-documents"
+        ]
+      }
+    },
     "/projects/{projectId}/documents/{documentId}/exports/spring-boot": {
       "post": {
         "operationId": "DocumentsController_exportSpringBoot",
@@ -1330,6 +1605,171 @@
           "updatedAt",
           "canonicalModel"
         ]
+      },
+      "XmiPreviewUploadDto": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Archivo XMI UTF-8 limitado a 1 MiB.",
+            "format": "binary",
+            "maxLength": 1048576
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "XmiDiagnosticDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "warning"
+            ]
+          },
+          "xmiId": {
+            "type": "string"
+          },
+          "xmiType": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "severity"
+        ]
+      },
+      "XmiProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "uml-class-designer-xmi"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "xmiVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "umlNamespace": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "xmiVersion",
+          "umlNamespace"
+        ]
+      },
+      "XmiSummaryDto": {
+        "type": "object",
+        "properties": {
+          "attributes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "classes": {
+            "type": "number",
+            "minimum": 0
+          },
+          "interfaces": {
+            "type": "number",
+            "minimum": 0
+          },
+          "operations": {
+            "type": "number",
+            "minimum": 0
+          },
+          "relationships": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "attributes",
+          "classes",
+          "interfaces",
+          "operations",
+          "relationships"
+        ]
+      },
+      "XmiImportPreviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/XmiDiagnosticDto"
+            }
+          },
+          "currentRevision": {
+            "type": "number",
+            "minimum": 0
+          },
+          "profile": {
+            "$ref": "#/components/schemas/XmiProfileDto"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/XmiSummaryDto"
+          }
+        },
+        "required": [
+          "diagnostics",
+          "currentRevision",
+          "profile",
+          "sha256",
+          "summary"
+        ]
+      },
+      "ApplyXmiImportUploadDto": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 devuelto por el preview XMI.",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "acknowledgeWarnings": {
+            "type": "boolean",
+            "default": false,
+            "description": "Confirma aplicar solo el subconjunto válido cuando el preview declaró advertencias de pérdida."
+          },
+          "file": {
+            "type": "string",
+            "description": "El mismo archivo validado por preview.",
+            "format": "binary",
+            "maxLength": 1048576
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "sha256",
+          "file"
+        ],
+        "additionalProperties": false
       },
       "SpringBootExportOptionsDto": {
         "type": "object",

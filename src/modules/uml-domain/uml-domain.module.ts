@@ -15,6 +15,7 @@ import { DocumentsService } from './documents.service';
 import { SpringBootExportQuotaService } from './spring-boot-export-quota.service';
 import { SpringBootExportService } from './spring-boot-export.service';
 import { UmlCommandExecutor } from './uml-command.executor';
+import { XmiInteroperabilityService } from './xmi/xmi-interoperability.service';
 
 @Module({
   imports: [AuthModule, ProjectsModule],
@@ -33,6 +34,7 @@ import { UmlCommandExecutor } from './uml-command.executor';
     CollaborationGateway,
     SpringBootExportQuotaService,
     SpringBootExportService,
+    XmiInteroperabilityService,
   ],
 })
 export class UmlDomainModule {}

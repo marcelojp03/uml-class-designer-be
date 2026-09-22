@@ -127,6 +127,29 @@ export class DocumentsService {
     return this.toResponse(document);
   }
 
+  async withAuthorizedDocumentSnapshot<TResult>(
+    projectId: string,
+    documentId: string,
+    userId: string,
+    sessionId: string,
+    read: (document: DocumentResponseDto) => TResult | Promise<TResult>,
+  ): Promise<TResult> {
+    return this.prisma.$transaction(async (transaction) => {
+      await this.lockMutationSession(transaction, userId, sessionId);
+      await this.lockCollaboratorMembership(transaction, projectId, userId);
+      const document = await transaction.umlDocument.findFirst({
+        where: { id: documentId, projectId },
+        select: DOCUMENT_SELECT,
+      });
+      if (!document) {
+        throw new NotFoundException('Document not found.');
+      }
+
+      // Keep the session and membership rows locked while a bounded export is derived.
+      return read(this.toResponse(document));
+    });
+  }
+
   async update(
     projectId: string,
     documentId: string,

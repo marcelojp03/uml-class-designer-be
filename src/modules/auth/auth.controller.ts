@@ -39,6 +39,14 @@ import type { AuthenticatedPrincipal, AuthResult } from './auth.types';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
 
+// Las suites E2E de integración operan desde una sola IP con navegador real y
+// realizan decenas de registros/logins por minuto; en NODE_ENV=test se eleva el
+// límite para evitar 429 deterministas. Producción conserva 10/60s.
+const AUTH_THROTTLE =
+  process.env.NODE_ENV === 'test'
+    ? { default: { limit: 1_000, ttl: 60_000 } }
+    : { default: { limit: 10, ttl: 60_000 } };
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -49,7 +57,7 @@ export class AuthController {
 
   @Public()
   @UseGuards(AuthIntentGuard)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle(AUTH_THROTTLE)
   @Post('register')
   @ApiHeader({ name: AUTH_INTENT_HEADER, required: true, example: AUTH_INTENT_VALUE })
   @ApiOperation({ summary: 'Crea un usuario y una sesión segura' })
@@ -64,7 +72,7 @@ export class AuthController {
 
   @Public()
   @UseGuards(AuthIntentGuard)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle(AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @Post('login')
   @ApiHeader({ name: AUTH_INTENT_HEADER, required: true, example: AUTH_INTENT_VALUE })

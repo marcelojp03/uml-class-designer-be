@@ -43,6 +43,7 @@ export function validateCanonicalModel(value: unknown): CanonicalUmlModel {
 }
 
 export function assertCanonicalSemanticIntegrity(document: CanonicalUmlModel): void {
+  assertXml10SafeStrings(document, '');
   const ids = new Set<string>();
   const registerId = (id: string, path: string) => {
     if (ids.has(id)) {
@@ -309,6 +310,45 @@ function relationshipSignature(relationship: UmlRelationship, reversed = false):
     target.navigable,
     relationship.associationClassId ?? null,
   ]);
+}
+
+function assertXml10SafeStrings(value: unknown, path: string): void {
+  if (typeof value === 'string') {
+    if (containsInvalidXml10Character(value)) {
+      throwSemanticError(path || '/', 'contains characters that are invalid in XML 1.0.');
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) {
+      assertXml10SafeStrings(item, `${path}/${index}`);
+    }
+    return;
+  }
+  if (value === null || typeof value !== 'object') return;
+  for (const [key, nestedValue] of Object.entries(value)) {
+    assertXml10SafeStrings(nestedValue, `${path}/${key}`);
+  }
+}
+
+function containsInvalidXml10Character(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+    if (
+      codePoint === undefined ||
+      (codePoint !== 0x9 &&
+        codePoint !== 0xa &&
+        codePoint !== 0xd &&
+        !(
+          (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+          (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+          (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+        ))
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isManyMultiplicity(value: string): boolean {
